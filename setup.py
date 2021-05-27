@@ -44,15 +44,15 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: Unix',
-        'Operating System :: POSIX',
+        # 'Operating System :: POSIX',
         'Operating System :: Microsoft :: Windows',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
+        # 'Programming Language :: Python :: 3.8',
+        # 'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         # uncomment if you test on these interpreters:
@@ -71,9 +71,20 @@ setup(
     ],
     python_requires='>=3.6',
     install_requires=[
+        "pytorch_lightning",
+        "torch",
+        "torchvision",
+        "torchmetrics",
+        "opencv-python",
+        "albumentations",
+
         # eg: 'aspectlib==1.1.1', 'six>=1.7',
     ],
     extras_require={
+        "dev": [
+            "pytest",
+            "tox"
+        ]
         # eg:
         #   'rst': ['docutils>=0.11'],
         #   ':python_version=="2.6"': ['argparse'],
