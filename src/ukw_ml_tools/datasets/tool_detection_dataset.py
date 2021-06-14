@@ -26,19 +26,19 @@ class ToolDetectionDataset(Dataset):
         self.scaling = scaling
         self.training = training
 
-        if training:
-            self.labels = labels
-            assert len(paths) == len(labels)
+        self.labels = labels
+        assert len(paths) == len(labels)
 
         self.classes = {0: "non_tool", 1: "tool"}
 
     def __getitem__(self, idx):
-        img = cv2.imread(self.paths[idx])
+        img = cv2.cvtColor(cv2.imread(self.paths[idx]), cv2.COLOR_BGR2RGB)
         width = int(1024 * self.scaling / 100)  # img.shape[1]
         height = int(1024 * self.scaling / 100)  # img.shape[0]
-        if img.shape[1] > 1000:
+
+        if img.shape[1] >= 1024 and img.shape[0] >= 1024:
             img = cropping_large(image=img)["image"]
-        else:
+        elif img.shape[1] >= 720 and img.shape[0] >= 720:
             img = cropping_small(image=img)["image"]
         dim = (width, height)
         img = np.flip(img, axis=-1)
@@ -52,7 +52,7 @@ class ToolDetectionDataset(Dataset):
         if self.training:
             return img_transforms(img), torch.tensor(self.labels[idx])
         else:
-            return img_transforms(img), self.paths[idx]
+            return img_transforms(img), self.labels[idx]
 
     def __len__(self):
         return len(self.paths)
