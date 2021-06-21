@@ -7,6 +7,7 @@ from bson.objectid import ObjectId
 import json
 import torch
 from datetime import datetime as dt
+from typing import Optional
 
 from .crud import get_intervention_for_image_id
 
@@ -16,15 +17,15 @@ from ..utils.export import rename_path_if_exists
 def get_ls_task(
     img_path: str,
     img_id: str,
-    targets: List,
-    report: str,
-    origin: str,
-    age: int,
-    gender: str,
-    intervention_date: str,
     intervention_id: str,
-    intervention_type: str,
+    targets: List,
     predictions: List,
+    origin: str,
+    report: Optional[str] = None,
+    age: Optional[int] = None,
+    gender: Optional[str] = None,
+    intervention_date: Optional[str] = None,
+    intervention_type: Optional[str] = None,
 ) -> dict:
     """Function to generate a labelstudio task element
 
@@ -47,7 +48,7 @@ def get_ls_task(
         (contains: "image", "_id", "report", "origin", "age", "gender", "intervention_date", "intervention_id", "intervention_type",
         "targets) and "predictions"
     """
-    return {
+    _dict = {
         "data": {
             "image": img_path,
             "_id": img_id,
@@ -62,6 +63,14 @@ def get_ls_task(
         },
         "predictions": predictions,
     }
+    delete = []
+    for key, value in _dict["data"].items():
+        if value is None:
+            delete.append(key)
+    for key in delete:
+        del _dict["data"][key]
+
+    return _dict
 
 
 def db_to_ls_classification_labels(db_label: dict) -> dict:
@@ -94,19 +103,22 @@ def ls_to_db_labels(ls_label) -> dict:
     db_label["_id"] = ls_label["data"]["_id"]
     db_label["targets"] = ls_label["data"]["targets"]
     db_label["annotations"] = [_["result"] for _ in ls_label["annotations"]]
-    assert len(db_label["annotations"]) == 1
-    db_label["annotations"] = db_label["annotations"][0]
-    assert len(db_label["annotations"]) == 1
-    db_label["annotations"] = db_label["annotations"][0]
-    db_label["labels"] = {_: False for _ in db_label["targets"]}
+    print(db_label["annotations"])
+    if db_label["annotations"]:
+        assert len(db_label["annotations"]) == 1
+        db_label["annotations"] = db_label["annotations"][0]
+        if db_label["annotations"]:
+            assert len(db_label["annotations"]) == 1
+            db_label["annotations"] = db_label["annotations"][0]
+            db_label["labels"] = {_: False for _ in db_label["targets"]}
 
-    for key, value in db_label["annotations"]["value"].items():
-        # Add Transformation for boxes ###################
-        if key == "choices":
-            for _label in value:
-                db_label["labels"][_label] = True
+            for key, value in db_label["annotations"]["value"].items():
+                # Add Transformation for boxes ###################
+                if key == "choices":
+                    for _label in value:
+                        db_label["labels"][_label] = True
 
-    return db_label
+            return db_label
 
 
 def report_to_string(report: dict) -> str:
@@ -195,13 +207,33 @@ def get_tasks_from_image_list(
             image["_id"], db_images, db_interventions
         )
 
-        intervention_id = intervention["_id"]
-        age = intervention["age"]
         origin = intervention["origin"]
-        intervention_date = intervention["intervention_date"]
-        gender = intervention["gender"]
-        intervention_type = intervention["intervention_type"]
-        report = report_to_string(intervention["report"])
+        intervention_id = intervention["_id"]
+        # Add optionally available metadata
+        if "age" in intervention:
+            age = intervention["age"]
+        else:
+            age = None
+
+        if "gender" in intervention:
+            gender = intervention["gender"]
+        else:
+            gender = None
+
+        if "intervention_type" in intervention:
+            intervention_type = intervention["intervention_type"]
+        else:
+            intervention_type = None
+
+        if "report" in intervention:
+            report = report_to_string(intervention["report"])
+        else:
+            report = None
+
+        if "initervention_date" in intervention:
+            intervention_date = intervention["intervention_date"].strftime("%Y-%m-%d")
+        else:
+            intervention_date = None
 
         img_name = Path(image["path"]).name
         _img_export_path = images_path.joinpath(img_name)
@@ -234,7 +266,7 @@ def get_tasks_from_image_list(
             origin=origin,
             age=age,
             gender=gender,
-            intervention_date=intervention_date.strftime("%Y-%m-%d"),
+            intervention_date=intervention_date,
             intervention_id=str(intervention_id),
             intervention_type=intervention_type,
             predictions=predictions,

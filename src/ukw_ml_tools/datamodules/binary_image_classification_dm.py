@@ -7,10 +7,10 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torch.utils.data import random_split
 
-from ..datasets.tool_detection_dataset import ToolDetectionDataset
+from ..datasets.binary_image_classification_ds import BinaryImageClassificationDS
 
 
-class ToolDetectionDataModule(LightningDataModule):
+class BinaryImageClassificationDM(LightningDataModule):
     """
     Example of LightningDataModule for MNIST dataset.
 
@@ -43,7 +43,7 @@ class ToolDetectionDataModule(LightningDataModule):
 
         self.data_df = pd.read_csv(data_dir, index_col=0)
         self.file_paths = self.data_df["file_path"].tolist()
-        self.labels = self.data_df["tool"].tolist()
+        self.labels = self.data_df["label"].tolist()
         self.scaling = scaling
         self.train_val_test_split = train_val_test_split
         self.batch_size = batch_size
@@ -65,7 +65,7 @@ class ToolDetectionDataModule(LightningDataModule):
 
         # print(paths)
 
-        dataset = ToolDetectionDataset(self.file_paths, self.labels, self.scaling)
+        dataset = BinaryImageClassificationDS(self.file_paths, self.labels, self.scaling)
         total = len(dataset)
         n_train = int(total * self.train_val_test_split[0])
         n_val = int(total * self.train_val_test_split[1])
