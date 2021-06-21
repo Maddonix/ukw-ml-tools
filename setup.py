@@ -23,7 +23,7 @@ def read(*names, **kwargs):
 
 setup(
     name='ukw-ml-tools',
-    version='0.0.1',
+    version='0.0.2',
     license='MIT',
     description='Frequently used ML utilities.',
     long_description='%s\n%s' % (
