@@ -2,6 +2,69 @@ from pymongo.collection import Collection
 import warnings
 
 
+# get information about db
+def get_prelabel_types(db_images):
+    """
+    Expects db image collection. Queries for all prediction types and returns list of unique values.
+    """
+    agg = [{"$match": {"labels.predictions": {"$exists": True}}}]
+
+    prediction_labels = []
+
+    for _ in db_images.aggregate(agg):
+        for key in _["labels"]["predictions"]:
+            if key not in prediction_labels:
+                prediction_labels.append(key)
+
+    return prediction_labels
+
+
+def get_annotation_types(db_images):
+    """
+    Expects db image collection. Queries for all prediction types and returns list of unique values.
+    """
+    agg = [{"$match": {"labels.annotations": {"$exists": True}}}]
+
+    annotation_labels = []
+    for _ in db_images.aggregate(agg):
+        for key in _["labels"]["annotations"]:
+            if key not in annotation_labels:
+                annotation_labels.append(key)
+
+    return annotation_labels
+
+
+def get_predictions_without_annotations_query(label: str):
+    """
+    Expects a label. Returns query dict for images with predictions but not annotations for this label.
+    Additionally filters images out if they are already marked as "in_progress". 
+    !!! Only works for binary classification !!!
+    """
+    return {
+        "$match": {
+            f"labels.predictions.{label}.labels": True,
+            f"labels.annotation.{label}": {"$exists": False},
+            "in_progress": False,
+        }
+    }
+
+
+def get_images_to_prelabel_query(label: str, version: float, limit: int = 100000):
+    return [
+        {
+            "$match": {"$and": [
+                {"$or": [
+                    {f"labels.predictions.{label}": {"$exists": False}},
+                    {f"labels.predictions.{label}.version": {"$lt": version}}
+                ]},
+                {f"labels.annotation.{label}": {"$exists": False}},
+            ]}
+            },
+        {"$limit": limit}
+    ]
+
+
+# DEPRECIATE
 def get_count_query(feature_name):
     return {
         "$facet": {
@@ -13,38 +76,31 @@ def get_count_query(feature_name):
     }
 
 
-def get_predictions_without_annotations_query(prelabel_type: str, label: str):
-    return {
-        "$match": {
-            f"labels.predictions.{prelabel_type}.labels.{label}": True,
-            f"labels.annotation.{label}": {"$exists": False},
-            "in_progress": False,
-        }
-    }
+# def get_predictions_without_annotations_query(prelabel_type: str, label: str):
+#     return {
+#         "$match": {
+#             f"labels.predictions.{prelabel_type}.labels.{label}": True,
+#             f"labels.annotation.{label}": {"$exists": False},
+#             "in_progress": False,
+#         }
+#     }
 
 
-def get_images_to_prelabel(prelabel_type: str, version: float, db_collection: str, batchsize: int = 0):
+def get_images_to_prelabel(
+    prelabel_type: str, version: float, db_collection: str, batchsize: int = 0
+):
     agg = [
         {
-            '$match': {
-                '$or': [
-                    {
-                        f'labels.predictions.{prelabel_type}': {
-                            '$exists': False
-                        }
-                    }, {
-                        f'labels.predictions.{prelabel_type}.version': {
-                            '$lt': version
-                        }
-                    }
+            "$match": {
+                "$or": [
+                    {f"labels.predictions.{prelabel_type}": {"$exists": False}},
+                    {f"labels.predictions.{prelabel_type}.version": {"$lt": version}},
                 ]
             }
         }
     ]
     if batchsize > 0:
-        agg.append({
-            "$limit": batchsize
-        })
+        agg.append({"$limit": batchsize})
 
     return db_collection.aggregate(agg)
 
