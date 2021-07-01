@@ -1,0 +1,430 @@
+{
+    "superframes": [
+        {
+            "frameNumber": -1,
+            "childFrames": [
+                {
+                    "frameNumber": 89,
+                    "comment": "",
+                    "classes": [
+                        "normal.start"
+                    ]
+                },
+                {
+                    "frameNumber": 148,
+                    "comment": "",
+                    "classes": [
+                        "normal.ende"
+                    ]
+                },
+                {
+                    "frameNumber": 149,
+                    "comment": "",
+                    "classes": [
+                        "p1.start"
+                    ]
+                },
+                {
+                    "frameNumber": 150,
+                    "comment": "",
+                    "classes": [
+                        "Paris0-Ip",
+                        "Size6-9"
+                    ]
+                },
+                {
+                    "frameNumber": 152,
+                    "comment": "",
+                    "classes": [
+                        "p1.end"
+                    ]
+                },
+                {
+                    "frameNumber": 156,
+                    "comment": "",
+                    "classes": [
+                        "p1.start"
+                    ]
+                },
+                {
+                    "frameNumber": 188,
+                    "comment": "",
+                    "classes": [
+                        "p1.end"
+                    ]
+                },
+                {
+                    "frameNumber": 991,
+                    "comment": "",
+                    "classes": [
+                        "normal.start"
+                    ]
+                },
+                {
+                    "frameNumber": 998,
+                    "comment": "",
+                    "classes": [
+                        "diverticula"
+                    ]
+                },
+                {
+                    "frameNumber": 1166,
+                    "comment": "",
+                    "classes": [
+                        "ileocecal valve"
+                    ]
+                },
+                {
+                    "frameNumber": 1862,
+                    "comment": "",
+                    "classes": [
+                        "normal.ende"
+                    ]
+                },
+                {
+                    "frameNumber": 1961,
+                    "comment": "",
+                    "classes": [
+                        "normaltool.start"
+                    ]
+                },
+                {
+                    "frameNumber": 1990,
+                    "comment": "",
+                    "classes": [
+                        "normaltoolende"
+                    ]
+                },
+                {
+                    "frameNumber": 2023,
+                    "comment": "",
+                    "classes": [
+                        "p2.start"
+                    ]
+                },
+                {
+                    "frameNumber": 2026,
+                    "comment": "",
+                    "classes": [
+                        "p2.end"
+                    ]
+                },
+                {
+                    "frameNumber": 2031,
+                    "comment": "",
+                    "classes": [
+                        "p2.start"
+                    ]
+                },
+                {
+                    "frameNumber": 2050,
+                    "comment": "",
+                    "classes": [
+                        "p2.end"
+                    ]
+                },
+                {
+                    "frameNumber": 2053,
+                    "comment": "",
+                    "classes": [
+                        "p2.start"
+                    ]
+                },
+                {
+                    "frameNumber": 2081,
+                    "comment": "",
+                    "classes": [
+                        "Paris0-Ip",
+                        "Size6-9"
+                    ]
+                },
+                {
+                    "frameNumber": 2092,
+                    "comment": "",
+                    "classes": [
+                        "p2.end"
+                    ]
+                },
+                {
+                    "frameNumber": 2358,
+                    "comment": "",
+                    "classes": [
+                        "normal.start"
+                    ]
+                },
+                {
+                    "frameNumber": 2483,
+                    "comment": "",
+                    "classes": [
+                        "normal.ende"
+                    ]
+                },
+                {
+                    "frameNumber": 2694,
+                    "comment": "",
+                    "classes": [
+                        "diverticula"
+                    ]
+                },
+                {
+                    "frameNumber": 2994,
+                    "comment": "",
+                    "classes": [
+                        "normal.start"
+                    ]
+                },
+                {
+                    "frameNumber": 3003,
+                    "comment": "",
+                    "classes": [
+                        "diverticula"
+                    ]
+                },
+                {
+                    "frameNumber": 3093,
+                    "comment": "",
+                    "classes": [
+                        "normal.ende"
+                    ]
+                },
+                {
+                    "frameNumber": 3129,
+                    "comment": "",
+                    "classes": [
+                        "p3.start"
+                    ]
+                },
+                {
+                    "frameNumber": 3130,
+                    "comment": "",
+                    "classes": [
+                        "p3.end"
+                    ]
+                },
+                {
+                    "frameNumber": 3140,
+                    "comment": "",
+                    "classes": [
+                        "p3.start"
+                    ]
+                },
+                {
+                    "frameNumber": 3157,
+                    "comment": "",
+                    "classes": [
+                        "p3.end"
+                    ]
+                },
+                {
+                    "frameNumber": 3165,
+                    "comment": "",
+                    "classes": [
+                        "p3.start"
+                    ]
+                },
+                {
+                    "frameNumber": 3176,
+                    "comment": "",
+                    "classes": [
+                        "p3.end"
+                    ]
+                },
+                {
+                    "frameNumber": 3747,
+                    "comment": "",
+                    "classes": [
+                        "normal.start"
+                    ]
+                },
+                {
+                    "frameNumber": 4051,
+                    "comment": "",
+                    "classes": [
+                        "p4.start"
+                    ]
+                },
+                {
+                    "frameNumber": 4052,
+                    "comment": "",
+                    "classes": [
+                        "normal.ende"
+                    ]
+                },
+                {
+                    "frameNumber": 4072,
+                    "comment": "",
+                    "classes": [
+                        "Paris0-Is"
+                    ]
+                },
+                {
+                    "frameNumber": 4079,
+                    "comment": "",
+                    "classes": [
+                        "p4.end"
+                    ]
+                },
+                {
+                    "frameNumber": 4426,
+                    "comment": "",
+                    "classes": [
+                        "normal.start"
+                    ]
+                },
+                {
+                    "frameNumber": 4586,
+                    "comment": "",
+                    "classes": [
+                        "normal.ende"
+                    ]
+                },
+                {
+                    "frameNumber": 4587,
+                    "comment": "",
+                    "classes": [
+                        "p5.start"
+                    ]
+                },
+                {
+                    "frameNumber": 4590,
+                    "comment": "",
+                    "classes": [
+                        "p5.end"
+                    ]
+                },
+                {
+                    "frameNumber": 4599,
+                    "comment": "",
+                    "classes": [
+                        "p5.start"
+                    ]
+                },
+                {
+                    "frameNumber": 4607,
+                    "comment": "",
+                    "classes": [
+                        "p5.end"
+                    ]
+                },
+                {
+                    "frameNumber": 4611,
+                    "comment": "",
+                    "classes": [
+                        "p5.start"
+                    ]
+                },
+                {
+                    "frameNumber": 4618,
+                    "comment": "",
+                    "classes": [
+                        "p5.end"
+                    ]
+                }
+            ]
+        }
+    ],
+    "images": [
+        {
+            "frameNumber": 184,
+            "label": "",
+            "boundingBox": [
+                {
+                    "x": 394.1968911917099,
+                    "y": 373.2718894009217,
+                    "width": 354.40414507772016,
+                    "height": 318.5253456221198,
+                    "label": "P1",
+                    "instance": "Undefined",
+                    "secondaryLabels": []
+                }
+            ]
+        },
+        {
+            "frameNumber": 2025,
+            "label": "",
+            "boundingBox": [
+                {
+                    "x": 589.4300518134714,
+                    "y": 65.9447004608295,
+                    "width": 79.58549222797927,
+                    "height": 87.09677419354838,
+                    "label": "P1",
+                    "instance": "Undefined",
+                    "secondaryLabels": []
+                }
+            ]
+        },
+        {
+            "frameNumber": 3143,
+            "label": "",
+            "boundingBox": [
+                {
+                    "x": 503.6269430051813,
+                    "y": 182.9032258064516,
+                    "width": 419.0673575129534,
+                    "height": 266.2672811059908,
+                    "label": "P3",
+                    "instance": "Undefined",
+                    "secondaryLabels": []
+                }
+            ]
+        },
+        {
+            "frameNumber": 4073,
+            "label": "",
+            "boundingBox": [
+                {
+                    "x": 549.6373056994819,
+                    "y": 413.08755760368666,
+                    "width": 240.0,
+                    "height": 323.5023041474654,
+                    "label": "P4",
+                    "instance": "Undefined",
+                    "secondaryLabels": []
+                }
+            ]
+        }
+    ],
+    "metadata": {
+        "videoFile": "testy_test.mkv",
+        "resolutionWidth": 1920,
+        "resolutionHeight": 1080,
+        "framesFolder": "frames",
+        "imageCount": -1,
+        "boxFormat": "coco",
+        "imagesWithBoxes": 4,
+        "boxCount": 4,
+        "superframes": [
+            -1
+        ],
+        "classes": [
+            "normal.start",
+            "normal.ende",
+            "p1.start",
+            "Paris0-Ip",
+            "Size6-9",
+            "p1.end",
+            "diverticula",
+            "ileocecal valve",
+            "normaltool.start",
+            "normaltoolende",
+            "p2.start",
+            "p2.end",
+            "p3.start",
+            "p3.end",
+            "p4.start",
+            "Paris0-Is",
+            "p4.end",
+            "p5.start",
+            "p5.end",
+            "",
+            "P1",
+            "P3",
+            "P4",
+            "Undefined"
+        ],
+        "imageLabels": [],
+        "boxLabels": [],
+        "boxInstances": []
+    }
+}

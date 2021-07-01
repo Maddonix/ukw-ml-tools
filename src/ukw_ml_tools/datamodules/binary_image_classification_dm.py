@@ -65,7 +65,9 @@ class BinaryImageClassificationDM(LightningDataModule):
 
         # print(paths)
 
-        dataset = BinaryImageClassificationDS(self.file_paths, self.labels, self.scaling)
+        dataset = BinaryImageClassificationDS(
+            self.file_paths, self.labels, self.scaling
+        )
         total = len(dataset)
         n_train = int(total * self.train_val_test_split[0])
         n_val = int(total * self.train_val_test_split[1])

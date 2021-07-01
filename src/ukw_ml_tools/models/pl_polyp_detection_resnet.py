@@ -9,7 +9,7 @@ from torchmetrics.classification.accuracy import Accuracy
 from torchvision import models
 
 
-class IleumDetectionResnet(LightningModule):
+class PolypDetectionResnet(LightningModule):
     def __init__(self, num_classes, freeze_extractor, **kwargs):
         super().__init__()
         self.num_classes = num_classes
@@ -32,7 +32,7 @@ class IleumDetectionResnet(LightningModule):
         self.model.fc = nn.Linear(num_ftrs, self.num_classes)
 
         # loss function
-        self.criterion = nn.BCEWithLogitsLoss(pos_weight=torch.Tensor([5]))  # nn.NLLLoss
+        self.criterion = nn.BCEWithLogitsLoss()  # nn.NLLLoss
 
         self.train_accuracy = Accuracy()
         self.val_accuracy = Accuracy()

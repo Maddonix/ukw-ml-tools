@@ -42,6 +42,7 @@ class BinaryImageClassificationDS(Dataset):
         elif img.shape[1] >= 720 and img.shape[0] >= 720:
             img = cropping_small(image=img)["image"]
         dim = (width, height)
+        # Switch BGR to RGB 
         img = np.flip(img, axis=-1)
         if self.training:
             img = img_augmentations(image=img)["image"]

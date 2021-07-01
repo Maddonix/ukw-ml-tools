@@ -1,5 +1,9 @@
 from pymongo.collection import Collection
 import warnings
+from typing import List
+from pathlib import Path
+import os
+import cv2
 
 
 # get information about db
@@ -37,12 +41,12 @@ def get_annotation_types(db_images):
 def get_predictions_without_annotations_query(label: str):
     """
     Expects a label. Returns query dict for images with predictions but not annotations for this label.
-    Additionally filters images out if they are already marked as "in_progress". 
+    Additionally filters images out if they are already marked as "in_progress".
     !!! Only works for binary classification !!!
     """
     return {
         "$match": {
-            f"labels.predictions.{label}.labels": True,
+            f"labels.predictions.{label}": {"$exists": True},
             f"labels.annotation.{label}": {"$exists": False},
             "in_progress": False,
         }
@@ -52,16 +56,52 @@ def get_predictions_without_annotations_query(label: str):
 def get_images_to_prelabel_query(label: str, version: float, limit: int = 100000):
     return [
         {
-            "$match": {"$and": [
-                {"$or": [
-                    {f"labels.predictions.{label}": {"$exists": False}},
-                    {f"labels.predictions.{label}.version": {"$lt": version}}
-                ]},
-                {f"labels.annotation.{label}": {"$exists": False}},
-            ]}
-            },
-        {"$limit": limit}
+            "$match": {
+                "$and": [
+                    {
+                        "$or": [
+                            {f"labels.predictions.{label}": {"$exists": False}},
+                            {f"labels.predictions.{label}.version": {"$lt": version}},
+                        ]
+                    },
+                    {f"labels.annotation.{label}": {"$exists": False}},
+                ]
+            }
+        },
+        {"$limit": limit},
     ]
+
+
+def exctract_frame_list(
+    video_key: str, frame_list: List[int], base_path_frames: Path, db_interventions: str
+):
+    """Function to extract frames.
+
+    Args:
+        video_key (str): [description]
+        frame_list (List[int]): [description]
+        base_path_frames (Path): [description]
+        db_interventions (str): [description]
+    """
+    intervention = db_interventions.find_one({"video_key": video_key})
+    assert base_path_frames.exists()
+
+    if not intervention:
+        warnings.warn(f"Intervention with video_key {video_key} does not exist")
+
+    frames_path = base_path_frames.joinpath(video_key)
+
+    if not frames_path.exists():
+        os.mkdir(frames_path)
+
+    video_path = Path(intervention["video_path"])
+    cap = cv2.VideoCapture(video_path.as_posix())
+
+    for n_frame in frame_list:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, n_frame)
+        ret, frame = cap.read()
+        if ret:
+            cv2.imwrite(frames_path.joinpath(f"{n_frame}.png"), frame)
 
 
 # DEPRECIATE

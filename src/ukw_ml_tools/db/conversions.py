@@ -64,6 +64,8 @@ def get_ls_task(
         "predictions": predictions,
     }
     delete = []
+    if not _dict["predictions"]:
+        del _dict["predictions"]
     for key, value in _dict["data"].items():
         if value is None:
             delete.append(key)
@@ -103,7 +105,6 @@ def ls_to_db_labels(ls_label) -> dict:
     db_label["_id"] = ls_label["data"]["_id"]
     db_label["targets"] = ls_label["data"]["targets"]
     db_label["annotations"] = [_["result"] for _ in ls_label["annotations"]]
-    print(db_label["annotations"])
     if db_label["annotations"]:
         assert len(db_label["annotations"]) == 1
         db_label["annotations"] = db_label["annotations"][0]
@@ -182,14 +183,13 @@ def get_tasks_from_image_list(
     prelabel_type: str,
     targets: List,
     host_prefix: str,
-    export_path: str,
+    export_path: Path,
     result_type: str,
     from_name: str,
     to_name: str,
     db_images: Collection,
     db_interventions: Collection,
 ):
-    print(export_path)
     if export_path.exists():
         warnings.warn(
             f"{export_path} already existed, deleted folder and all contents before proceeding"
@@ -203,37 +203,46 @@ def get_tasks_from_image_list(
 
     tasks = []
     for image in image_list:
-        intervention = get_intervention_for_image_id(
-            image["_id"], db_images, db_interventions
-        )
+        if "intervention_id" in image:
+            intervention = get_intervention_for_image_id(
+                image["_id"], db_images, db_interventions
+            )
 
-        origin = intervention["origin"]
-        intervention_id = intervention["_id"]
-        # Add optionally available metadata
-        if "age" in intervention:
-            age = intervention["age"]
+            origin = intervention["origin"]
+            intervention_id = intervention["_id"]
+            # Add optionally available metadata
+            if "age" in intervention:
+                age = intervention["age"]
+            else:
+                age = None
+
+            if "gender" in intervention:
+                gender = intervention["gender"]
+            else:
+                gender = None
+
+            if "intervention_type" in intervention:
+                intervention_type = intervention["intervention_type"]
+            else:
+                intervention_type = None
+
+            if "report" in intervention:
+                report = report_to_string(intervention["report"])
+            else:
+                report = ""
+
+            if "initervention_date" in intervention:
+                intervention_date = intervention["intervention_date"].strftime("%Y-%m-%d")
+            else:
+                intervention_date = None
         else:
             age = None
-
-        if "gender" in intervention:
-            gender = intervention["gender"]
-        else:
             gender = None
-
-        if "intervention_type" in intervention:
-            intervention_type = intervention["intervention_type"]
-        else:
             intervention_type = None
-
-        if "report" in intervention:
-            report = report_to_string(intervention["report"])
-        else:
-            report = None
-
-        if "initervention_date" in intervention:
-            intervention_date = intervention["intervention_date"].strftime("%Y-%m-%d")
-        else:
+            report = ""
             intervention_date = None
+            origin = None
+            intervention_id = None
 
         img_name = Path(image["path"]).name
         _img_export_path = images_path.joinpath(img_name)
@@ -243,20 +252,23 @@ def get_tasks_from_image_list(
 
         img_path = host_prefix + img_name
 
-        predictions = [
-            {
-                "result": [
-                    {
-                        "type": result_type,
-                        "from_name": from_name,
-                        "to_name": to_name,
-                        "value": db_to_ls_classification_labels(
-                            image["labels"]["predictions"][prelabel_type]["labels"]
-                        ),
-                    }
-                ]
-            }
-        ]
+        if prelabel_type in image["labels"]["predictions"]:
+            predictions = [
+                {
+                    "result": [
+                        {
+                            "type": result_type,
+                            "from_name": from_name,
+                            "to_name": to_name,
+                            "value": db_to_ls_classification_labels(
+                                image["labels"]["predictions"][prelabel_type]
+                            ),
+                        }
+                    ]
+                }
+            ]
+        else:
+            predictions = None
 
         _task = get_ls_task(
             img_path=img_path,
