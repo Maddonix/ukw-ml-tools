@@ -1,6 +1,7 @@
 from pathlib import Path
 import warnings
 from typing import List
+from collections import Counter
 
 
 def validate_adrian_annotation_json(annotation: dict) -> bool:
@@ -29,6 +30,25 @@ def validate_adrian_annotation_json(annotation: dict) -> bool:
     if "imageCount" not in annotation["metadata"]:
         warnings.warn("Annotation Metadata does not contain an image count")
     return True
+
+
+def validate_video_keys(db_interventions) -> List:
+    """Expects db_intervention collection, filters for non unique video_keys
+
+    Args:
+        db_interventions (mongoCollection): 
+
+    Returns:
+        List: List of non-unique video keys
+    """
+    interventions = db_interventions.find({"video_key": {"$exists": True}}, {"video_key": 1})
+    keys = [_["video_key"] for _ in interventions]
+    duplicates = [key for key, count in Counter(keys).items() if count > 1]
+
+    if duplicates:
+        warnings.warn("Non unique video keys detected")
+    return duplicates
+
 
 # Validate if files exist
 def validate_image_paths(db_images) -> List:

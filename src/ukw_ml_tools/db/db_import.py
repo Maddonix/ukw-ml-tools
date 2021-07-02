@@ -4,9 +4,7 @@ from pathlib import Path
 import json
 from .validation import validate_adrian_annotation_json
 
-BASE_PATH_VIDEOS = Path("/extreme_storage/files/videos/kolo")
-BASE_PATH_FRAMES = Path("/extreme_storage/files/frames")
-
+# Patterns to parse first round annotations
 regex_patterns = {
     "anatomy_ileocecalvalve": re.compile("anatomie.ileocecalvalve|ileocecal\svalve"),
     "anatomy_ileum": re.compile("(.*)\.*(ileum)"),
@@ -52,11 +50,14 @@ def process_webserver_json(
     if not validate_adrian_annotation_json(annotation):
         return None
     else:
-        intervention_content = get_intervention_content(annotation, video_path, intervention_type, skip_frame_factor)
+        intervention_content = get_intervention_content(
+            annotation, video_path, intervention_type, skip_frame_factor
+        )
+        intervention_content["origin"] = video_json["center"].lower()
         insert_intervention, insert_frames = make_insert_dicts(
             intervention_content, base_path_frames
         )
-
+   
         insert_intervention["video_hash"] = video_hash
         if "patho" in video_json:
             insert_intervention["patho_raw"] = video_json["patho"]
@@ -68,41 +69,13 @@ def process_webserver_json(
                 path_logs.joinpath(f"{Path(video_json['videoPath']).name}.json"), "w"
             ) as f:
                 json.dump(video_json, f)
-            warnings.warn(
-                f"Path already exists!\n{video_path}"
-            )
+            warnings.warn(f"Path already exists!\n{video_path}")
             return None
         else:
             return {
                 "insert_intervention": insert_intervention,
                 "insert_frames": insert_frames,
             }
-
-
-def get_source_origin_from_video_key(video_key: str) -> str:
-    """Expects video filename, looks for known physician names and returns the found name.
-
-    Args:
-        video_key (str): Video filename.
-
-    Returns:
-        str: physicians name
-    """
-    _key = video_key.lower()
-    if "simonis" in _key:
-        source_origin = "simonis"
-    elif "boeck" in _key:
-        source_origin = "boeck"
-    elif "passek" in _key:
-        source_origin = "passek"
-    elif "heil" in _key:
-        source_origin = "heil"
-    elif "heubach" in _key:
-        source_origin = "heubach"
-    else:
-        source_origin = "unknown"
-
-    return source_origin
 
 
 def get_intervention_content(
@@ -131,7 +104,6 @@ def get_intervention_content(
     intervention_content["annotation_raw"] = annotation
     intervention_content["frames_total"] = annotation["metadata"]["imageCount"]
     intervention_content["annotation"] = extracted_annotation
-    intervention_content["origin"] = get_source_origin_from_video_key(key)
     intervention_content["intervention_type"] = intervention_type
 
     return intervention_content
