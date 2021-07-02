@@ -72,6 +72,9 @@ def process_webserver_json(
             warnings.warn(f"Path already exists!\n{video_path}")
             return None
         else:
+            # if "frames" in insert_intervention:
+            #     insert_intervention["frames"] = [str(_) for _ in insert_intervention["frames"]]
+            
             return {
                 "insert_intervention": insert_intervention,
                 "insert_frames": insert_frames,
@@ -372,7 +375,7 @@ def make_insert_dicts(intervention: dict, base_path_frames: Path):
     frames = list(set(frames))
     frames.sort()
 
-    intervention["frames"] = frames
+    # intervention["frames"] = [str(_) for _ in frames]
 
     image_dicts = []
     for frame in frames:
@@ -420,7 +423,7 @@ def make_insert_dicts(intervention: dict, base_path_frames: Path):
                     annotations[key] = _[key]
 
         _dict["labels"]["annotations"] = annotations
-
+        # del intervention["annotation"]
         image_dicts.append(_dict)
 
     return intervention, image_dicts
