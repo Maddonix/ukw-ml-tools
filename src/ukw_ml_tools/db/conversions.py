@@ -1,4 +1,4 @@
-from typing import Collection, List
+from typing import List
 import os
 import shutil
 from pathlib import Path
@@ -9,7 +9,7 @@ import torch
 from datetime import datetime as dt
 from typing import Optional
 
-from .crud import get_intervention_for_image_id
+# from .crud import get_intervention_for_image_id
 
 from ..utils.export import rename_path_if_exists
 
@@ -142,7 +142,7 @@ def report_to_string(report: dict) -> str:
     return report_string
 
 
-def classification_pred_to_db_value(
+def binary_classification_pred_to_db_value(
     pred: torch.Tensor, ids: List, version: float, targets: List, creation_date=dt.now()
 ):
     """Function expects tensor of a predicted batch and list of corresponding database ids.
@@ -161,139 +161,139 @@ def classification_pred_to_db_value(
     """
     pred = torch.sigmoid(pred).cpu().numpy()
     assert len(pred[0]) is len(targets)
-    pred[pred >= 0.5] = 1
-    pred[pred < 0.5] = 0
-    #     pred = pred.astype(int)
+    bool_pred = pred.copy()
+    bool_pred[bool_pred >= 0.5] = 1
+    bool_pred[bool_pred < 0.5] = 0
 
     values = {
-        ObjectId(ids[j]): {
+        ObjectId(ids[i]): {
             "version": version,
             "targets": targets,
+            "value": float(pred[i][0]),
             "creation_date": creation_date,
-            "labels": {target: bool(_pred[i]) for i, target in enumerate(targets)},
-        }
-        for j, _pred in enumerate(pred)
+            "label": bool(bool_pred[i][0])
+        } for i in range(len(bool_pred))
     }
 
     return values
 
 
-def get_tasks_from_image_list(
-    image_list,
-    prelabel_type: str,
-    targets: List,
-    host_prefix: str,
-    export_path: Path,
-    result_type: str,
-    from_name: str,
-    to_name: str,
-    db_images: Collection,
-    db_interventions: Collection,
-):
-    if export_path.exists():
-        warnings.warn(
-            f"{export_path} already existed, deleted folder and all contents before proceeding"
-        )
-        shutil.rmtree(export_path)
-    os.mkdir(export_path)
-    images_path = export_path.joinpath("images")
-    tasks_path = export_path.joinpath("tasks")
-    os.mkdir(images_path)
-    os.mkdir(tasks_path)
+# def get_tasks_from_image_list(
+#     image_list,
+#     prelabel_type: str,
+#     targets: List,
+#     host_prefix: str,
+#     export_path: Path,
+#     result_type: str,
+#     from_name: str,
+#     to_name: str,
+#     db_images: Collection,
+#     db_interventions: Collection,
+# ):
+#     if export_path.exists():
+#         warnings.warn(
+#             f"{export_path} already existed, deleted folder and all contents before proceeding"
+#         )
+#         shutil.rmtree(export_path)
+#     os.mkdir(export_path)
+#     images_path = export_path.joinpath("images")
+#     tasks_path = export_path.joinpath("tasks")
+#     os.mkdir(images_path)
+#     os.mkdir(tasks_path)
 
-    tasks = []
-    for image in image_list:
-        if "intervention_id" in image:
-            intervention = get_intervention_for_image_id(
-                image["_id"], db_images, db_interventions
-            )
+#     tasks = []
+#     for image in image_list:
+#         if "intervention_id" in image:
+#             intervention = get_intervention_for_image_id(
+#                 image["_id"], db_images, db_interventions
+#             )
 
-            origin = intervention["origin"]
-            intervention_id = intervention["_id"]
-            # Add optionally available metadata
-            if "age" in intervention:
-                age = intervention["age"]
-            else:
-                age = None
+#             origin = intervention["origin"]
+#             intervention_id = intervention["_id"]
+#             # Add optionally available metadata
+#             if "age" in intervention:
+#                 age = intervention["age"]
+#             else:
+#                 age = None
 
-            if "gender" in intervention:
-                gender = intervention["gender"]
-            else:
-                gender = None
+#             if "gender" in intervention:
+#                 gender = intervention["gender"]
+#             else:
+#                 gender = None
 
-            if "intervention_type" in intervention:
-                intervention_type = intervention["intervention_type"]
-            else:
-                intervention_type = None
+#             if "intervention_type" in intervention:
+#                 intervention_type = intervention["intervention_type"]
+#             else:
+#                 intervention_type = None
 
-            if "report" in intervention:
-                report = report_to_string(intervention["report"])
-            else:
-                report = ""
+#             if "report" in intervention:
+#                 report = report_to_string(intervention["report"])
+#             else:
+#                 report = ""
 
-            if "initervention_date" in intervention:
-                intervention_date = intervention["intervention_date"].strftime("%Y-%m-%d")
-            else:
-                intervention_date = None
-        else:
-            age = None
-            gender = None
-            intervention_type = None
-            report = ""
-            intervention_date = None
-            origin = None
-            intervention_id = None
+#             if "initervention_date" in intervention:
+#                 intervention_date = intervention["intervention_date"].strftime("%Y-%m-%d")
+#             else:
+#                 intervention_date = None
+#         else:
+#             age = None
+#             gender = None
+#             intervention_type = None
+#             report = ""
+#             intervention_date = None
+#             origin = None
+#             intervention_id = None
 
-        img_name = Path(image["path"]).name
-        _img_export_path = images_path.joinpath(img_name)
-        _img_export_path = rename_path_if_exists(_img_export_path)
+#         img_name = Path(image["path"]).name
+#         _img_export_path = images_path.joinpath(img_name)
+#         _img_export_path = rename_path_if_exists(_img_export_path)
 
-        shutil.copyfile(image["path"], _img_export_path.as_posix())
+#         shutil.copyfile(image["path"], _img_export_path.as_posix())
 
-        img_path = host_prefix + img_name
+#         img_path = host_prefix + img_name
 
-        if prelabel_type in image["labels"]["predictions"]:
-            predictions = [
-                {
-                    "result": [
-                        {
-                            "type": result_type,
-                            "from_name": from_name,
-                            "to_name": to_name,
-                            "value": db_to_ls_classification_labels(
-                                image["labels"]["predictions"][prelabel_type]
-                            ),
-                        }
-                    ]
-                }
-            ]
-        else:
-            predictions = None
+#         if prelabel_type in image["labels"]["predictions"]:
+#             predictions = [
+#                 {
+#                     "result": [
+#                         {
+#                             "type": result_type,
+#                             "from_name": from_name,
+#                             "to_name": to_name,
+#                             "value": db_to_ls_classification_labels(
+#                                 image["labels"]["predictions"][prelabel_type]
+#                             ),
+#                         }
+#                     ]
+#                 }
+#             ]
+#         else:
+#             predictions = None
 
-        _task = get_ls_task(
-            img_path=img_path,
-            img_id=str(image["_id"]),
-            targets=targets,
-            report=report,
-            origin=origin,
-            age=age,
-            gender=gender,
-            intervention_date=intervention_date,
-            intervention_id=str(intervention_id),
-            intervention_type=intervention_type,
-            predictions=predictions,
-        )
+#         _task = get_ls_task(
+#             img_path=img_path,
+#             img_id=str(image["_id"]),
+#             targets=targets,
+#             report=report,
+#             origin=origin,
+#             age=age,
+#             gender=gender,
+#             intervention_date=intervention_date,
+#             intervention_id=str(intervention_id),
+#             intervention_type=intervention_type,
+#             predictions=predictions,
+#         )
 
-        tasks.append(_task)
+#         tasks.append(_task)
 
-    # Export Tasks
-    json_export_path = export_path.joinpath("tasks/tasks.json")
-    json_export_path = rename_path_if_exists(json_export_path)
+#     # Export Tasks
+#     json_export_path = export_path.joinpath("tasks/tasks.json")
+#     json_export_path = rename_path_if_exists(json_export_path)
 
-    with open(json_export_path, "w") as f:
-        json.dump(tasks, f)
+#     with open(json_export_path, "w") as f:
+#         json.dump(tasks, f)
 
-    return tasks
+#     return tasks
 
 
 def get_tasks_from_intervention(
