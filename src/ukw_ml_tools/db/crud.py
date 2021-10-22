@@ -2,21 +2,76 @@
 import warnings
 from typing import List
 from pathlib import Path
+from pymongo.collection import Collection
 import os
 from bson.objectid import ObjectId
 import cv2
 import pandas as pd
 
 
-def get_binary_train_df(label, neg_label_list, db_images):
+def get_prediction_task_df(
+    label: str,
+    version: float,
+    db_images: Collection,
+    origin: str = None,
+    limit: int = 1000,
+    predict_annotated: bool = False,
+) -> pd.DataFrame:
+    """Function queries the given collection for images to predict the given label on.\
+        Images which already have an annotation of this label or a prediction with the current\
+        AI version are excluded. If given a origin, only images of the given origin are predicted.\
+        Returns a pd.DataFrame with columns "_id" (image id in database) and "file_path" (complete filepath on our server)
+
+    Args:
+        label (str): label to query for
+        version (float): AI version number
+        db_images (Collection): collection containing images
+        origin (str, optional): Optionally filter for a specific origin. Defaults to None.
+        limit (int, optional): Number to limit the output. Defaults to 1000.
+
+    Returns:
+        pd.DataFrame: Dataframe with columns "_id" and "file_path"
+    """
+    if origin:
+        agg = [{"$match": {"origin": origin}}]
+    else:
+        agg = []
+
+    agg.extend(
+        get_images_to_prelabel_query(
+            label=label,
+            version=version,
+            limit=limit,
+            predict_annotated=predict_annotated,
+        )
+    )
+    result = db_images.aggregate(agg)
+
+    df_dict = {"file_path": [], "_id": []}
+    for _ in result:
+        df_dict["_id"].append(_["_id"])
+        df_dict["file_path"].append(_["path"])
+
+    return pd.DataFrame().from_dict(df_dict)
+
+
+def get_binary_train_df(
+    label: str, neg_label_list: List[str], db_images
+) -> pd.DataFrame:
+    """Queries db_images for pos. and neg. images of given label / neg label list
+
+    Args:
+        label (str): label defined as positive-
+        neg_label_list (List[(str, float)]): List of tuples containing labelname and\
+            multiplier. Multiplier is used to limit entries of each label to n_pos * multiplier
+        db_images (): pymongo collection instance
+
+    Returns:
+        pd.DataFrame: pd.Dataframe containing columns "file_path" and "label". Label has value\
+            0 or 1.
+    """
     # Positive Images
-    agg = [
-        {
-            "$match": {
-                f"labels_new.{label}": True
-            }
-        }
-    ]
+    agg = [{"$match": {f"labels_new.{label}": True}}]
     imgs_pos = [_["path"] for _ in db_images.aggregate(agg)]
     n_pos = len(imgs_pos)
     imgs_pos_df = {"file_path": [_ for _ in imgs_pos], "label": [1 for _ in imgs_pos]}
@@ -26,14 +81,8 @@ def get_binary_train_df(label, neg_label_list, db_images):
 
     for neg_label, multiplier in neg_label_list:
         agg = [
-            {
-                "$match": {
-                    f"labels_new.{neg_label}": True
-                }
-            },
-            {
-                "$limit": n_pos*multiplier
-            }
+            {"$match": {f"labels_new.{neg_label}": True}},
+            {"$limit": n_pos * multiplier},
         ]
         _imgs_neg = [_["path"] for _ in db_images.aggregate(agg)]
         imgs_neg.extend(_imgs_neg)
@@ -48,22 +97,55 @@ def get_binary_train_df(label, neg_label_list, db_images):
     return label_df
 
 
-def get_image_db_template(origin: str = None, intervention_id: ObjectId = None, path: str = None, n_frame: int = None):
+def get_image_db_template(
+    origin: str = None,
+    intervention_id: ObjectId = None,
+    path: str = None,
+    n_frame: int = None,
+):
+    """Returns db_images template
+
+    Args:
+        origin (str, optional): String to define source. Defaults to None.
+        intervention_id (ObjectId, optional): Id of intervention the image originates from. Defaults to None.
+        path (str, optional): path to image. Defaults to None.
+        n_frame (int, optional): Integer reffering to the frame number in the original video. Defaults to None.
+
+    Returns:
+        dict
+    """
+
     template = {
         "origin": origin,
         "intervention_id": intervention_id,
         "path": path,
-        "labels": {
-            "annotations": {},
-            "predictions": {},
-        },
         "n_frame": n_frame,
-        "in_progress": False
+        "in_progress": False,
     }
     return template
 
 
-def extract_frames_to_db(frames: List[int], intervention_id: ObjectId, base_path_frames: Path, db_images, db_interventions, verbose=False):
+def extract_frames_to_db(
+    frames: List[int],
+    intervention_id: ObjectId,
+    base_path_frames: Path,
+    db_images,
+    db_interventions,
+    verbose=False,
+):
+    """Extracts given frames (as List of integers) from intervention with given id.
+
+    Args:
+        frames (List[int]): List of integers referring to frame numbers.
+        intervention_id (ObjectId): Intervention id to extract from
+        base_path_frames (Path): Base Path to store frames in
+        db_images ([type]): pymongo collection instance
+        db_interventions ([type]): pymongo collection instance
+        verbose (bool, optional): Triggers console output. Defaults to False.
+
+    Returns:
+        List[ObjectId]: Returns list of inserted ids in db_images
+    """
     intervention = db_interventions.find_one({"_id": intervention_id})
     video_key = intervention["video_key"]
     frame_directory = base_path_frames.joinpath(video_key)
@@ -74,7 +156,7 @@ def extract_frames_to_db(frames: List[int], intervention_id: ObjectId, base_path
     else:
         intervention_frame_dict = {}
     inserted_image_ids = []
-    
+
     for n_frame in frames:
         if str(n_frame) in intervention_frame_dict:
             if verbose:
@@ -85,72 +167,55 @@ def extract_frames_to_db(frames: List[int], intervention_id: ObjectId, base_path
         success, image = cap.read()
         assert success
         cv2.imwrite(frame_path.as_posix(), image)
-        
+
         db_image_entry = get_image_db_template(
             origin=intervention["origin"],
             intervention_id=intervention["_id"],
             path=frame_path.as_posix(),
-            n_frame=n_frame
+            n_frame=n_frame,
         )
-        
+
         _id = db_images.insert_one(db_image_entry).inserted_id
         intervention_frame_dict[str(n_frame)] = _id
-        db_interventions.update_one({"_id": intervention["_id"]}, {"$set": {"frames": intervention_frame_dict}})
+        db_interventions.update_one(
+            {"_id": intervention["_id"]}, {"$set": {"frames": intervention_frame_dict}}
+        )
         inserted_image_ids.append(_id)
         if verbose:
             print(db_image_entry)
-        
+
     return inserted_image_ids
-        
-        
-def delete_frames_from_db(image_ids: List[ObjectId], db_images, db_interventions, verbose: bool = False):
+
+
+def delete_frames_from_db(
+    image_ids: List[ObjectId], db_images, db_interventions, verbose: bool = False
+):
+    """Function expect List of image ids. Deletes them in db_images and also deletes their reference in\
+        db_interventions. Only works with extracted frames from videos!
+
+    Args:
+        image_ids (List[ObjectId]): List of Ids for frames to delete.
+        db_images ([type]): pymongo collection instance. Entries must have fields "intervention_id" and "n_frame"
+        db_interventions ([type]): pymongo collection instance. Entries must have field "frames"\
+            containing a dictionary with frame number as keys.
+        verbose (bool, optional): Enables console output. Defaults to False.
+    """
     for image_id in image_ids:
         image = db_images.find_one({"_id": image_id})
         n_frame = image["n_frame"]
-        db_interventions.update_one({"_id": ObjectId("60dae8b12dc144033e693434")}, {"$unset": {f"frames.{n_frame}": ""}})
+        intervention_id = image["intervention_id"]
+        db_interventions.update_one(
+            {"_id": intervention_id}, {"$unset": {f"frames.{n_frame}": ""}}
+        )
         db_images.delete_one({"_id": image_id})
         if verbose:
             print(image)
             print("deleted\n\n")
 
 
-def get_label_types(db_images):
-    _labels = db_images.distinct("labels.annotations")
-    labels = []
-    for _ in _labels:
-        labels.extend(list(_.keys()))
-    labels = list(set(labels))
-    return labels
-
-
-def get_prelabel_types(db_images):
-    """
-    Expects db image collection. Queries for all prediction types and returns list of unique values.
-    """
-    _labels = db_images.distinct("labels.predictions")
-    labels = []
-    for _ in _labels:
-        labels.extend(list(_.keys()))
-    labels = list(set(labels))
-    return labels
-
-
-def get_predictions_without_annotations_query(label: str):
-    """
-    Expects a label. Returns query dict for images with predictions but not annotations for this label.
-    Additionally filters images out if they are already marked as "in_progress".
-    !!! Only works for binary classification !!!
-    """
-    return {
-        "$match": {
-            f"labels.predictions.{label}": {"$exists": True},
-            f"labels.annotation.{label}": {"$exists": False},
-            "in_progress": False,
-        }
-    }
-
-
-def get_images_to_prelabel_query(label: str, version: int, predict_annotated: bool = False, limit: int = 100000):
+def get_images_to_prelabel_query(
+    label: str, version: int, predict_annotated: bool = False, limit: int = 100000
+):
     """Function expects a label (str) and returns a query to find images which
     have no prediction or an outdated prediction for this label.
 
@@ -167,11 +232,10 @@ def get_images_to_prelabel_query(label: str, version: int, predict_annotated: bo
             "$match": {
                 "$and": [
                     {
-                        "$or": [{
-                            f"predictions.{label}": {"$exists": False}
-                        }, {
-                            f"predictions.{label}.version": {"$lt": version}
-                        }]
+                        "$or": [
+                            {f"predictions.{label}": {"$exists": False}},
+                            {f"predictions.{label}.version": {"$lt": version}},
+                        ]
                     },
                     {f"labels.annotation.{label}": {"$exists": predict_annotated}},
                 ]
@@ -179,6 +243,82 @@ def get_images_to_prelabel_query(label: str, version: int, predict_annotated: bo
         },
         {"$limit": limit},
     ]
+
+
+def get_images_for_tasks(
+    label: str,
+    upper_confidence_threshold: float,
+    lower_confidence_threshold: float,
+    inclusive: bool,
+    limit: int,
+    db_images,
+):
+    """Queries db_images for images to annotate. Images will be selected\
+        between confidence threshholds (inclusive True) or outside confidence\
+        threshholds (inclusive False).\
+        Images with labels_unclear.unclear == True will be excluded.\
+        Only images with highest ai-version will be included.
+
+
+    Args:
+        label (str): label to query for
+        upper_confidence_threshold (float): value between 0 and 1.
+        lower_confidence_threshold (float): value between 0 and 1.
+        inclusive (bool): If True, included images have prediction values\
+            between threshholds. Otherwise, these images are excluded
+        limit (int): Maximum amount of images to return
+        db_images ([type]): pymongo collection instance.
+
+    Returns:
+        [type]: [description]
+    """
+    latest_ai_version = max(db_images.distinct(f"predictions.{label}.version"))
+    if not inclusive:
+        confidence_aggregation = {
+            "$or": [
+                {f"predictions.{label}.value": {"$gt": upper_confidence_threshold}},
+                {f"predictions.{label}.value": {"$lt": lower_confidence_threshold}},
+            ]
+        }
+    else:
+        confidence_aggregation = {
+            "$and": [
+                {f"predictions.{label}.value": {"$lt": upper_confidence_threshold}},
+                {f"predictions.{label}.value": {"$gt": lower_confidence_threshold}},
+            ]
+        }
+
+    _images = db_images.aggregate(
+        [
+            {
+                "$match": {
+                    "$and": [
+                        {f"labels_new.{label}": {"$exists": False}},  # Unlabeled Images
+                        {
+                            "$or": [
+                                {
+                                    "labels_unclear.unclear": False
+                                },  # Images have not been labeled as unclear
+                                {"labels_unclear.unclear": {"$exists": False}},
+                            ]
+                        },
+                        {f"predictions.{label}.version": latest_ai_version},
+                        confidence_aggregation,
+                    ]
+                }
+            },
+            {"$sample": {"size": limit}},
+        ]
+    )
+
+    _ids = []
+    images = []
+    for image in _images:
+        if image["_id"] not in _ids:
+            _ids.append(image["_id"])
+            images.append(image)
+
+    return images
 
 
 def exctract_frame_list(
@@ -215,95 +355,3 @@ def exctract_frame_list(
 
 def get_images_in_progress(db_images):
     return db_images.find({"in_progress": True})
-
-####################################################################
-# DEPRECIATE
-
-
-def get_categorical_label_count(label: str, db_images):
-    warnings.warn("Depreceation Warning!")
-    if label == "polyp_detection_bbox":
-        return None
-    r = db_images.aggregate(
-        [{"$group": {"_id": f"$labels.annotations.{label}", "count": {"$sum": 1}}}]
-    )
-    r = [_ for _ in r if _["_id"] is not None]
-    return r
-
-####################################################################
-# DEPRECIATED
-
-# def get_images_to_prelabel(
-#     prelabel_type: str, version: float, db_collection: str, batchsize: int = 0
-# ):
-#     agg = [
-#         {
-#             "$match": {
-#                 "$or": [
-#                     {f"labels.predictions.{prelabel_type}": {"$exists": False}},
-#                     {f"labels.predictions.{prelabel_type}.version": {"$lt": version}},
-#                 ]
-#             }
-#         }
-#     ]
-#     if batchsize > 0:
-#         agg.append({"$limit": batchsize})
-
-#     return db_collection.aggregate(agg)
-
-
-# def get_intervention_for_image_id(
-#     image_id, db_images: Collection, db_interventions: Collection
-# ):
-#     r = db_images.find_one({"_id": image_id})
-
-#     if r:
-#         intervention_id = r["intervention_id"]
-#         intervention = db_interventions.find_one({"_id": intervention_id})
-
-#         return intervention
-
-#     else:
-#         warnings.warn(f"No image found for id {image_id}")
-
-
-# intervention_has_image_paths = {"$match": {"image_paths.1": {"$exists": True}}}
-
-
-# def get_intervention_text_match_query(
-#     keyword_list, intervention_type: str = "Koloskopie"
-# ):
-#     text_query = {
-#         "image_paths.1": {"$exists": True},
-#         "intervention_type": intervention_type,
-#         "$text": {
-#             "$search": " ".join(keyword_list),
-#             "$language": "de",
-#             "$caseSensitive": False,
-#         },
-#     }
-
-#     agg = [
-#         {"$match": text_query},
-#         {
-#             "$lookup": {
-#                 "from": "images",
-#                 "localField": "image_ids",
-#                 "foreignField": "_id",
-#                 "as": "image_objects",
-#             }
-#         },
-#         {
-#             "$project": {
-#                 "report": True,
-#                 "image_objects": True,
-#                 "intervention_date": True,
-#                 "age": True,
-#                 "gender": True,
-#                 "origin": True,
-#                 "intervention_type": True,
-#             }
-#         },
-#     ]
-
-#     return agg

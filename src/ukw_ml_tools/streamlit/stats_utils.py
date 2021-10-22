@@ -4,20 +4,30 @@ from typing import List
 
 
 def get_default_dict():
+    """Helper function returns a defaultdict generating dictionaries"""
     return defaultdict(dict)
 
 
 def get_label_count_by_origin(label_list: List[str], db_images):
     count_all = defaultdict(get_default_dict)
-    for label in label_list:  
+    for label in label_list:
         r = db_images.aggregate(
-            [{"$group": {"_id": {"label": f"$labels_new.{label}", "origin": "$origin"}, "count": {"$sum": 1}}}]
+            [
+                {
+                    "$group": {
+                        "_id": {"label": f"$labels_new.{label}", "origin": "$origin"},
+                        "count": {"$sum": 1},
+                    }
+                }
+            ]
         )
 
         r = [_ for _ in r if "origin" in _["_id"] and "label" in _["_id"]]
         # r.sort()
         for category_count in r:
-            count_all[label][category_count["_id"]["origin"]][category_count["_id"]["label"]] = category_count["count"]
+            count_all[label][category_count["_id"]["origin"]][
+                category_count["_id"]["label"]
+            ] = category_count["count"]
 
     return count_all
 
@@ -76,9 +86,20 @@ def refresh_videos_origin_count(save_path, db_interventions):
     return video_origin_count
 
 
-def refresh_all(db_images, db_interventions, label_list, path_video_origin_count, path_label_count, path_label_by_origin_count):
+def refresh_all(
+    db_images,
+    db_interventions,
+    label_list,
+    path_video_origin_count,
+    path_label_count,
+    path_label_by_origin_count,
+):
     label_count = refresh_label_count(label_list, path_label_count, db_images)
-    label_by_origin_count = refresh_label_by_origin_count(label_list, path_label_by_origin_count, db_images)
-    video_origin_count = refresh_videos_origin_count(path_video_origin_count, db_interventions)
+    label_by_origin_count = refresh_label_by_origin_count(
+        label_list, path_label_by_origin_count, db_images
+    )
+    video_origin_count = refresh_videos_origin_count(
+        path_video_origin_count, db_interventions
+    )
 
     return label_count, label_by_origin_count, video_origin_count

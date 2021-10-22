@@ -4,44 +4,19 @@ from typing import List
 from collections import Counter
 
 
-def validate_adrian_annotation_json(annotation: dict) -> bool:
-    """Function to validate json files from adrians annotation tool. Returns
-    False if any of "metadata", "metadata.videofile", "superframes" or "images"
-    are missing.
-
-    Args:
-        annotation (dict): Dictionarie of read annotation json.
-
-    Returns:
-        bool: True if valid, else false.
-    """
-    if "metadata" not in annotation:
-        warnings.warn("Annotation does not contain Metadata")
-        return False
-    if "images" not in annotation:
-        warnings.warn("Annotation does not contain Image-Array")
-        return False
-    if "superframes" not in annotation:
-        warnings.warn("Annotation does not contain Superframe-Array")
-        return False
-    if "videoFile" not in annotation["metadata"]:
-        warnings.warn("Annotation Metadata does not contain a video file name")
-        return False
-    if "imageCount" not in annotation["metadata"]:
-        warnings.warn("Annotation Metadata does not contain an image count")
-    return True
-
-
+# Validate if no duplicate video keys exist
 def validate_video_keys(db_interventions) -> List:
     """Expects db_intervention collection, filters for non unique video_keys
 
     Args:
-        db_interventions (mongoCollection): 
+        db_interventions (mongoCollection):
 
     Returns:
         List: List of non-unique video keys
     """
-    interventions = db_interventions.find({"video_key": {"$exists": True}}, {"video_key": 1})
+    interventions = db_interventions.find(
+        {"video_key": {"$exists": True}}, {"video_key": 1}
+    )
     keys = [_["video_key"] for _ in interventions]
     duplicates = [key for key, count in Counter(keys).items() if count > 1]
 
@@ -68,6 +43,7 @@ def validate_image_paths(db_images) -> List:
     return image_ids
 
 
+# Validate if video files exist
 def validate_video_paths(db_interventions):
     """
     Expects db interventions collection. Checks all entries with have "video_key" if the video file exists.
