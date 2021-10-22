@@ -3,6 +3,8 @@ import warnings
 from pathlib import Path
 import json
 from .validation import validate_adrian_annotation_json
+from .conversions import ls_choices_to_label_dict
+from typing import List
 
 # Patterns to parse first round annotations
 regex_patterns = {
@@ -17,6 +19,14 @@ regex_patterns = {
     "igien": re.compile("igien"),
     "diverticula": re.compile("diverticula"),
 }
+
+
+def labeled_ls_task_to_db_update(task: dict, project_labels: List):
+    annotations = task["annotations"]
+    latest_result = annotations[-1]["result"]
+    update_label_dict = ls_choices_to_label_dict(latest_result, project_labels)
+    
+    return update_label_dict
 
 
 def process_webserver_json(

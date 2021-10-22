@@ -30,12 +30,12 @@ def get_ckpt_path(ai_name: str, version: float, path_models: Path) -> Path:
     if not _path.exists():
         warnings.warn(f"Path {_path} does not exist!")
         print(_path)
-    # assert _path.exists()
 
     return _path
 
 
-def get_prediction_task_df(label: str, version: float, db_images: Collection, origin: str = None, limit: int = 1000) -> pd.DataFrame:
+def get_prediction_task_df(label: str, version: float, db_images: Collection, origin: str = None, limit: int = 1000,
+    predict_annotated: bool = False) -> pd.DataFrame:
     """Function queries the given collection for images to predict the given label on.
     Images which already have an annotation of this label or a prediction with the current
     AI version are excluded. If given a origin, only images of the given origin are predicted.
@@ -58,7 +58,7 @@ def get_prediction_task_df(label: str, version: float, db_images: Collection, or
     else:
         agg = []
 
-    agg.extend(get_images_to_prelabel_query(label=label, version=version, limit=limit))
+    agg.extend(get_images_to_prelabel_query(label=label, version=version, limit=limit, predict_annotated=predict_annotated))
     result = db_images.aggregate(agg)
 
     df_dict = {"file_path": [], "_id": []}

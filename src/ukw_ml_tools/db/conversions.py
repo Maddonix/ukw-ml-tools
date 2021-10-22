@@ -14,6 +14,28 @@ from typing import Optional
 from ..utils.export import rename_path_if_exists
 
 
+def ls_choices_to_label_dict(ls_results: List[dict], label_list: List[str], prefix: str = "labels_new"):
+    if ls_results:
+        assert len(ls_results) == 1
+        result = ls_results[-1]
+        assert result["type"] == "choices"
+        choices = result["value"]["choices"]
+        if "unclear" in choices:
+            prefix = "labels_unclear"
+        label_dict = {}
+        for _ in label_list:
+            label_dict[f"{prefix}.{_}"] = False
+
+        for choice in choices:
+            label_dict[f"{prefix}.{choice}"] = True
+    else:
+        label_dict = {}
+        for _ in label_list:
+            label_dict[f"{prefix}.{_}"] = False
+
+    return label_dict
+
+
 def get_ls_task(
     img_path: str,
     img_id: str,

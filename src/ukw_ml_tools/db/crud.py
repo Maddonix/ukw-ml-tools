@@ -5,6 +5,47 @@ from pathlib import Path
 import os
 from bson.objectid import ObjectId
 import cv2
+import pandas as pd
+
+
+def get_binary_train_df(label, neg_label_list, db_images):
+    # Positive Images
+    agg = [
+        {
+            "$match": {
+                f"labels_new.{label}": True
+            }
+        }
+    ]
+    imgs_pos = [_["path"] for _ in db_images.aggregate(agg)]
+    n_pos = len(imgs_pos)
+    imgs_pos_df = {"file_path": [_ for _ in imgs_pos], "label": [1 for _ in imgs_pos]}
+
+    # Negative Images
+    imgs_neg = [_["path"] for _ in db_images.find({f"labels_new.{label}": False})]
+
+    for neg_label, multiplier in neg_label_list:
+        agg = [
+            {
+                "$match": {
+                    f"labels_new.{neg_label}": True
+                }
+            },
+            {
+                "$limit": n_pos*multiplier
+            }
+        ]
+        _imgs_neg = [_["path"] for _ in db_images.aggregate(agg)]
+        imgs_neg.extend(_imgs_neg)
+
+    imgs_neg_df = {"file_path": [_ for _ in imgs_neg], "label": [0 for _ in imgs_neg]}
+
+    df_dict = imgs_pos_df
+    df_dict["file_path"].extend(imgs_neg_df["file_path"])
+    df_dict["label"].extend(imgs_neg_df["label"])
+
+    label_df = pd.DataFrame.from_dict(df_dict)
+    return label_df
 
 
 def get_image_db_template(origin: str = None, intervention_id: ObjectId = None, path: str = None, n_frame: int = None):
@@ -109,9 +150,9 @@ def get_predictions_without_annotations_query(label: str):
     }
 
 
-def get_images_to_prelabel_query(label: str, version: float, limit: int = 100000):
-    """Function expects a label (str) and returns a query to find images which have not been annotated for
-    this label and either have no prediction or an outdated prediction for this label.
+def get_images_to_prelabel_query(label: str, version: int, predict_annotated: bool = False, limit: int = 100000):
+    """Function expects a label (str) and returns a query to find images which
+    have no prediction or an outdated prediction for this label.
 
     Args:
         label (str): label to query for
@@ -126,12 +167,13 @@ def get_images_to_prelabel_query(label: str, version: float, limit: int = 100000
             "$match": {
                 "$and": [
                     {
-                        "$or": [
-                            {f"labels.predictions.{label}": {"$exists": False}},
-                            {f"labels.predictions.{label}.version": {"$lt": version}},
-                        ]
+                        "$or": [{
+                            f"predictions.{label}": {"$exists": False}
+                        }, {
+                            f"predictions.{label}.version": {"$lt": version}
+                        }]
                     },
-                    {f"labels.annotation.{label}": {"$exists": False}},
+                    {f"labels.annotation.{label}": {"$exists": predict_annotated}},
                 ]
             }
         },
