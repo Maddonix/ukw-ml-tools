@@ -11,6 +11,7 @@ from ..datasets.binary_image_classification_ds import BinaryImageClassificationD
 
 
 class BinaryImageClassificationDM(LightningDataModule):
+
     """
     Example of LightningDataModule for MNIST dataset.
 

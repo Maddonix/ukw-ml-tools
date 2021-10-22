@@ -1,6 +1,7 @@
 from typing import List, Optional
+
 # import re
-import warnings
+# import warnings
 # from pathlib import Path
 # import json
 
@@ -13,13 +14,13 @@ def get_label_types(db_images):
     labels = list(set(labels))
     return labels
 
+
 def get_categorical_label_count(label: str, db_images):
     r = db_images.aggregate(
         [{"$group": {"_id": f"$labels.annotations.{label}", "count": {"$sum": 1}}}]
     )
     r = [_ for _ in r if _["_id"] is not None]
     return r
-
 
 
 def get_predictions_without_annotations_query(label: str):
@@ -31,11 +32,9 @@ def get_predictions_without_annotations_query(label: str):
     return {
         "$match": {
             f"labels.predictions.{label}": {"$exists": True},
-            f"labels.annotation.{label}": {"$exists": False}
+            f"labels.annotation.{label}": {"$exists": False},
         }
     }
-
-
 
 
 def get_ls_task(

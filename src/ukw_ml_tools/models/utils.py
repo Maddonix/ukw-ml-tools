@@ -29,14 +29,14 @@ def get_ckpt_path(ai_name: str, version: float, path_models: Path) -> Path:
     return _path
 
 
-def load_model(model_name: str, version: float, eval: bool, base_path_models: Path):
+def load_model(model_name: str, version: float, _eval: bool, base_path_models: Path):
     """Function loads model for given name.
 
     Args:
         model_name (str): One of "polyp", "ileum", "tool", "ileocaecalvalve", "appendix"
         version (float): version number.
         eval (bool): If True, model is loaded in eval mode.
-        base_path_models(Path): Points to directory containing folders named by models, containing checkpoints named by 
+        base_path_models(Path): Points to directory containing folders named by models, containing checkpoints named by
             version numbers (e.g. '0.1.ckpt')
 
     Returns:
@@ -62,7 +62,7 @@ def load_model(model_name: str, version: float, eval: bool, base_path_models: Pa
     if torch.cuda.is_available():
         trained_model.cuda(0)
     # trained_model.to(0)
-    if eval:
+    if _eval:
         trained_model.train(False)
         trained_model.freeze()
 
