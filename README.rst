@@ -56,9 +56,9 @@ Overview
     :alt: Supported implementations
     :target: https://pypi.org/project/ukw-ml-tools
 
-.. |commits-since| image:: https://img.shields.io/github/commits-since/Maddonix/ukw-ml-tools/v0.0.2.svg
+.. |commits-since| image:: https://img.shields.io/github/commits-since/Maddonix/ukw-ml-tools/v0.1.0.svg
     :alt: Commits since latest release
-    :target: https://github.com/Maddonix/ukw-ml-tools/compare/v0.0.2...master
+    :target: https://github.com/Maddonix/ukw-ml-tools/compare/v0.1.0...master
 
 
 .. |scrutinizer| image:: https://img.shields.io/scrutinizer/quality/g/Maddonix/ukw-ml-tools/master.svg
