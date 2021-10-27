@@ -2,6 +2,7 @@ import warnings
 from pathlib import Path
 from .pl_ileum_detection_resnet import IleumDetectionResnet
 from .pl_tool_detection_resnet import ToolDetectionResnet
+from .pl_polyp_detection_resnet import PolypDetectionResnet
 import torch
 
 AVAILABLE_AI_MODELS = ["polyp", "ileum", "tool", "ileocaecalvalve", "appendix"]
@@ -46,8 +47,7 @@ def load_model(model_name: str, version: float, _eval: bool, base_path_models: P
 
     ckpt_path = get_ckpt_path(model_name, version, base_path_models)
     if model_name == "polyp":
-        warnings.warn("Polyps are not yet supported")
-        return None
+        Model = PolypDetectionResnet
     if model_name == "ileum":
         Model = IleumDetectionResnet
     if model_name == "tool":
