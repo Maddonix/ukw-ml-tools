@@ -19,7 +19,6 @@ class IleumDetectionResnet(LightningModule):
         # it also allows to access params with 'self.hparams' attribute
         self.save_hyperparameters()
         self.model = models.resnext50_32x4d(pretrained=True)
-        print(self.model)
 
         if self.freeze_extractor:
             print("Transfer learning with a fixed ConvNet feature extractor")
@@ -32,7 +31,7 @@ class IleumDetectionResnet(LightningModule):
         self.model.fc = nn.Linear(num_ftrs, self.num_classes)
 
         # loss function
-        self.criterion = nn.BCEWithLogitsLoss(pos_weight=torch.Tensor([5]))  # nn.NLLLoss
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=torch.Tensor([1]))  # nn.NLLLoss
 
         self.train_accuracy = Accuracy()
         self.val_accuracy = Accuracy()

@@ -3,7 +3,7 @@ import json
 from typing import List
 
 
-def get_default_dict():
+def get_default_dict(template=dict):
     """Helper function returns a defaultdict generating dictionaries"""
     return defaultdict(dict)
 
@@ -31,7 +31,31 @@ def get_label_count_by_origin(label_list: List[str], db_images):
 
     return count_all
 
+# moved to classes.db_images
+def get_label_count_by_intervention(label_list: List[str], db_images):
+    count_all = defaultdict(get_default_dict)
+    for label in label_list:
+        r = db_images.aggregate(
+            [
+                {
+                    "$group": {
+                        "_id": {"label": f"$labels_new.{label}", "intervention_id": "$intervention_id"},
+                        "count": {"$sum": 1},
+                    }
+                }
+            ]
+        )
 
+        r = [_ for _ in r if "intervention_id" in _["_id"] and "label" in _["_id"]]
+        # r.sort()
+        for category_count in r:
+            count_all[label][category_count["_id"]["intervention_id"]][
+                category_count["_id"]["label"]
+            ] = category_count["count"]
+
+    return count_all
+
+# moved to classes.db_images
 def get_label_count(label_list: List[str], db_images):
     count_all = defaultdict(dict)
     for label in label_list:

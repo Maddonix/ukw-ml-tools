@@ -32,7 +32,6 @@ class BinaryImageClassificationDS(Dataset):
         self.classes = {0: "negative", 1: "positive"}
 
     def __getitem__(self, idx):
-        # img = cv2.cvtColor(cv2.imread(self.paths[idx]), cv2.COLOR_BGR2RGB)
         img = cv2.imread(self.paths[idx])
         width = int(1024 * self.scaling / 100)  # img.shape[1]
         height = int(1024 * self.scaling / 100)  # img.shape[0]
@@ -43,7 +42,7 @@ class BinaryImageClassificationDS(Dataset):
             img = cropping_small(image=img)["image"]
         dim = (width, height)
         # Switch BGR to RGB
-        img = np.flip(img, axis=-1)
+        # img = np.flip(img, axis=-1)
         if self.training:
             img = img_augmentations(image=img)["image"]
 

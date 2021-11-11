@@ -1,11 +1,11 @@
 import warnings
 from pathlib import Path
 from .pl_ileum_detection_resnet import IleumDetectionResnet
-from .pl_tool_detection_resnet import ToolDetectionResnet
+from .pl_googlenet import GoogleNet
 from .pl_polyp_detection_resnet import PolypDetectionResnet
 import torch
 
-AVAILABLE_AI_MODELS = ["polyp", "ileum", "tool", "ileocaecalvalve", "appendix"]
+AVAILABLE_AI_MODELS = ["polyp", "ileum", "tool", "ileocaecalvalve", "appendix", "blurry", "body"]
 
 
 def get_ckpt_path(ai_name: str, version: float, path_models: Path) -> Path:
@@ -49,13 +49,17 @@ def load_model(model_name: str, version: float, _eval: bool, base_path_models: P
     if model_name == "polyp":
         Model = PolypDetectionResnet
     if model_name == "ileum":
-        Model = IleumDetectionResnet
+        Model = GoogleNet
     if model_name == "tool":
-        Model = ToolDetectionResnet
+        Model = GoogleNet
     if model_name == "ileocaecalvalve":
-        Model = IleumDetectionResnet
+        Model = GoogleNet
     if model_name == "appendix":
-        Model = IleumDetectionResnet
+        Model = GoogleNet
+    if model_name == "blurry":
+        Model = GoogleNet
+    if model_name == "body":
+        Model = GoogleNet
 
     trained_model = Model.load_from_checkpoint(checkpoint_path=ckpt_path)
 
@@ -63,7 +67,9 @@ def load_model(model_name: str, version: float, _eval: bool, base_path_models: P
         trained_model.cuda(0)
     # trained_model.to(0)
     if _eval:
-        trained_model.train(False)
+        trained_model.eval()
         trained_model.freeze()
+    else: 
+        trained_model.train()
 
     return trained_model

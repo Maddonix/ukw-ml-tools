@@ -23,7 +23,7 @@ def read(*names, **kwargs):
 
 setup(
     name='ukw-ml-tools',
-    version='0.1.0',
+    version='0.0.2',
     license='MIT',
     description='Frequently used ML utilities.',
     long_description='%s\n%s' % (
@@ -51,8 +51,8 @@ setup(
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
-        # 'Programming Language :: Python :: 3.8',
-        # 'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy',
         # uncomment if you test on these interpreters:

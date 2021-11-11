@@ -5,6 +5,7 @@ from collections import Counter
 
 
 # Validate if no duplicate video keys exist
+# Moved to classes.db_interventions
 def validate_video_keys(db_interventions) -> List:
     """Expects db_intervention collection, filters for non unique video_keys
 

@@ -4,6 +4,8 @@ import xml.etree.ElementTree as ET
 import json
 from bson.objectid import ObjectId
 
+from ukw_ml_tools.classes.fieldnames import FIELDNAME_LABELS, FIELDNAME_LABELS_VALIDATED
+
 
 def delete_project_by_id(project_id: int, labelstudio_prefix: str, labelstudio_token: str):
     requests.delete(f"{labelstudio_prefix}projects/{project_id}", headers={"Authorization": labelstudio_token})
@@ -73,7 +75,7 @@ def generate_ls_task(image, label, new_project_id, fileserver_prefix):
 
 
 # Labelstudio -> db
-def import_ls_project_annotations(project_id, labelstudio_prefix: str, labelstudio_token: str, db_images, verbose: bool = False) -> bool:
+def import_ls_project_annotations(project_id, labelstudio_prefix: str, labelstudio_token: str, db_images, import_as_validated: bool = False, verbose: bool = False) -> bool:
     project = requests.get(f"{labelstudio_prefix}projects/{project_id}", headers={"Authorization": labelstudio_token}).json()
     project_labels = project["parsed_label_config"]["choice"]["labels"]
 
@@ -101,15 +103,15 @@ def import_ls_project_annotations(project_id, labelstudio_prefix: str, labelstud
     project_updates = {}
     for task in project_tasks_labeled:
         db_id = task["data"]["_id"]
-
         project_updates[db_id] = labeled_ls_task_to_db_update(task, project_labels)
+    
     for _id, update in project_updates.items():
         db_images.update_one({"_id": ObjectId(_id)}, {"$set": update})
 
     return True
 
 
-def ls_choices_to_label_dict(ls_results: List[dict], label_list: List[str], prefix: str = "labels_new"):
+def ls_choices_to_label_dict(ls_results: List[dict], label_list: List[str], import_as_validated:bool = False):
     """Expects labelstudio result (task["annotation"][n_annotation"]["result"]).\
         Asserts that result is of type choices. Reads result and returns label dict.
 
@@ -122,23 +124,42 @@ def ls_choices_to_label_dict(ls_results: List[dict], label_list: List[str], pref
     Returns:
         dict: dict of form {prefix.label: bool}
     """
+    prefix = FIELDNAME_LABELS
     if ls_results:
         assert len(ls_results) == 1
+
         result = ls_results[-1]
         assert result["type"] == "choices"
+
         choices = result["value"]["choices"]
+
         if "unclear" in choices:
             prefix = "labels_unclear"
-        label_dict = {}
-        for _ in label_list:
-            label_dict[f"{prefix}.{_}"] = False
 
-        for choice in choices:
-            label_dict[f"{prefix}.{choice}"] = True
+        label_dict = {}
+
+        if import_as_validated:
+            for _ in label_list:
+                label_dict[f"{prefix}.{_}"] = False
+                label_dict[f"{FIELDNAME_LABELS_VALIDATED}.{_}"] = False
+
+            for choice in choices:
+                label_dict[f"{prefix}.{choice}"] = True
+                label_dict[f"{FIELDNAME_LABELS_VALIDATED}.{choice}"] = True
+
+        else:
+            for _ in label_list:
+                label_dict[f"{prefix}.{_}"] = False
+
+            for choice in choices:
+                label_dict[f"{prefix}.{choice}"] = True
+
     else:
         label_dict = {}
         for _ in label_list:
             label_dict[f"{prefix}.{_}"] = False
+            if import_as_validated:
+                label_dict[f"{FIELDNAME_LABELS_VALIDATED}.{_}"] = False
 
     return label_dict
 

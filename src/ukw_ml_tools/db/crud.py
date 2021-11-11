@@ -7,6 +7,8 @@ import os
 from bson.objectid import ObjectId
 import cv2
 import pandas as pd
+from collections import defaultdict, Counter
+from tqdm import tqdm
 
 
 def get_prediction_task_df(
@@ -55,8 +57,55 @@ def get_prediction_task_df(
     return pd.DataFrame().from_dict(df_dict)
 
 
+# def filter_images_by_frame_diff(img_list, min_frame_diff = 10):
+#     filtered_images_dict = defaultdict(list)
+
+#     for img in img_list:
+#         intervention_id = img["intervention_id"]
+
+#         if img["origin"] in ["archive_würzburg", "archive_stuttgart", "würzburg_continuous"]:
+#             filtered_images_dict[intervention_id].append(img)
+#             continue
+
+#         append = True
+#         n_frame = img["n_frame"]
+        
+#         if filtered_images_dict[intervention_id]:
+#             for _img in filtered_images_dict[intervention_id]:
+#                 frame_diff = abs(_img["n_frame"] - n_frame)
+#                 if frame_diff < min_frame_diff:
+#                     append = False
+#                     break
+        
+#         if append:
+#             filtered_images_dict[intervention_id].append(img)
+
+#     filtered_images = []
+#     for key, value in filtered_images_dict.items():
+#         filtered_images.extend(value)
+    
+#     return filtered_images
+
+
+def get_test_data_intervention_ids(path_test_dataset, db_interventions):
+    """accepts path to xlsx file with column video_key and returns list of object ids for these interventions.
+
+    Args:
+        path_test_dataset (Path): pints to xlsx file
+        db_interventions (): db_interventions collection
+
+    Returns:
+        List[ObjectId]: List of Object Ids
+    """
+    test_data_df = pd.read_excel(path_test_dataset, engine="openpyxl")
+    video_keys = test_data_df.video_key.dropna().to_list()
+    test_intervention_ids = [_["_id"] for _ in db_interventions.find({"video_key": {"$in": video_keys}})]
+
+    return test_intervention_ids
+
+
 def get_binary_train_df(
-    label: str, neg_label_list: List[str], db_images
+    label: str, neg_label_list: List[str], min_frame_diff, exclude_intervention_id_list, db_images
 ) -> pd.DataFrame:
     """Queries db_images for pos. and neg. images of given label / neg label list
 
@@ -71,17 +120,18 @@ def get_binary_train_df(
             0 or 1.
     """
     # Positive Images
-    agg = [{"$match": {f"labels_new.{label}": True}}]
-    imgs_pos = [_["path"] for _ in db_images.aggregate(agg)]
+    agg = [{"$match": {f"labels_new.{label}": True, "intervention_id": {"$exists": True, "$nin": exclude_intervention_id_list}}}]
+    imgs_pos = [_ for _ in db_images.aggregate(agg)]
+    imgs_pos = filter_images_by_frame_diff(imgs_pos, min_frame_diff = min_frame_diff)
     n_pos = len(imgs_pos)
-    imgs_pos_df = {"file_path": [_ for _ in imgs_pos], "label": [1 for _ in imgs_pos]}
+    imgs_pos_df = {"file_path": [_["path"] for _ in imgs_pos], "label": [1 for _ in imgs_pos]}
 
     # Negative Images
-    imgs_neg = [_["path"] for _ in db_images.find({f"labels_new.{label}": False})]
+    imgs_neg = [_["path"] for _ in db_images.find({f"labels_new.{label}": False, "intervention_id": {"$exists": True, "$nin": exclude_intervention_id_list}})]
 
     for neg_label, multiplier in neg_label_list:
         agg = [
-            {"$match": {f"labels_new.{neg_label}": True}},
+            {"$match": {f"labels_new.{neg_label}": True,"intervention_id": {"$exists": True, "$nin": exclude_intervention_id_list}}},
             {"$limit": n_pos * multiplier},
         ]
         _imgs_neg = [_["path"] for _ in db_images.aggregate(agg)]
@@ -125,6 +175,28 @@ def get_image_db_template(
     return template
 
 
+def get_label_count_intervention(intervention_id: ObjectId, db_images, db_interventions, set_in_db: bool = True):
+    intervention = db_interventions.find_one({"_id": intervention_id})
+
+    frame_ids = [_id for _, _id in intervention["frames"].items()]
+    images = db_images.find({"_id": {"$in": frame_ids}})
+
+    labels = defaultdict(list)
+
+    for image in images:
+        if "labels_new" in image:
+            for key, value in image["labels_new"].items():
+                labels[key].append(str(value))
+        
+    for key in labels.keys():
+        labels[key] = dict(Counter(labels[key]))
+
+    if set_in_db:
+        db_interventions.update_one({"_id": intervention_id}, {"$set": {"labels_frames": labels}})
+
+    return labels
+
+
 def extract_frames_to_db(
     frames: List[int],
     intervention_id: ObjectId,
@@ -157,7 +229,7 @@ def extract_frames_to_db(
         intervention_frame_dict = {}
     inserted_image_ids = []
 
-    for n_frame in frames:
+    for n_frame in tqdm(frames):
         if str(n_frame) in intervention_frame_dict:
             if verbose:
                 print(f"Frame {n_frame} was already extracted, passing")
@@ -214,7 +286,11 @@ def delete_frames_from_db(
 
 
 def get_images_to_prelabel_query(
-    label: str, version: int, predict_annotated: bool = False, limit: int = 100000
+    label: str,
+    version: int,
+    predict_annotated: bool = False,
+    limit: int = 100000,
+    exclude_origins = ["archive_stuttgart, archive_würzburg", "gi_genius_retrospective", "2nd_round", "3rd_round", "4th_round", "5th_round", "6th_round"]
 ):
     """Function expects a label (str) and returns a query to find images which
     have no prediction or an outdated prediction for this label.
@@ -238,10 +314,11 @@ def get_images_to_prelabel_query(
                         ]
                     },
                     {f"labels.annotation.{label}": {"$exists": predict_annotated}},
+                    {"origin": {"$nin": exclude_origins}}
                 ]
             }
         },
-        {"$limit": limit},
+        {"$sample": {"size": limit}},
     ]
 
 
@@ -249,14 +326,15 @@ def get_images_for_tasks(
     label: str,
     upper_confidence_threshold: float,
     lower_confidence_threshold: float,
-    inclusive: bool,
+    mode: str,
     limit: int,
     db_images,
+    intervention_type = "Koloskopie",
+    exclude_origins = ["archive_stuttgart, archive_würzburg", "gi_genius_retrospective", "2nd_round", "3rd_round", "4th_round", "5th_round", "6th_round"]
 ):
     """Queries db_images for images to annotate. Images will be selected\
-        between confidence threshholds (inclusive True) or outside confidence\
-        threshholds (inclusive False).\
-        Images with labels_unclear.unclear == True will be excluded.\
+        between confidence threshholds or outside confidence\
+        threshholds. Images with labels_unclear.unclear == True will be excluded.\
         Only images with highest ai-version will be included.
 
 
@@ -264,27 +342,48 @@ def get_images_for_tasks(
         label (str): label to query for
         upper_confidence_threshold (float): value between 0 and 1.
         lower_confidence_threshold (float): value between 0 and 1.
-        inclusive (bool): If True, included images have prediction values\
-            between threshholds. Otherwise, these images are excluded
+        mode (str): one of "high_conf", "low_conf", "contradicting"
         limit (int): Maximum amount of images to return
         db_images ([type]): pymongo collection instance.
 
     Returns:
         [type]: [description]
     """
+    assert mode in ["high_conf", "low_conf", "contradicting"]
     latest_ai_version = max(db_images.distinct(f"predictions.{label}.version"))
-    if not inclusive:
+    if mode == "high_conf":
+        has_label = False
         confidence_aggregation = {
             "$or": [
                 {f"predictions.{label}.value": {"$gt": upper_confidence_threshold}},
                 {f"predictions.{label}.value": {"$lt": lower_confidence_threshold}},
             ]
         }
-    else:
+    elif mode == "low_conf":
+        has_label = False
         confidence_aggregation = {
             "$and": [
                 {f"predictions.{label}.value": {"$lt": upper_confidence_threshold}},
                 {f"predictions.{label}.value": {"$gt": lower_confidence_threshold}},
+            ]
+        }
+    elif mode == "contradicting":
+        has_label = True
+        confidence_aggregation = {
+            "$or": [
+                {
+                    "$and": [
+                        {f"predictions.{label}.value": {"$gt": upper_confidence_threshold}},
+                        {f"labels_new.{label}": False},
+                        {f"labels_validated.{label}": {"$exists": False}}
+                    ]
+                },{
+                    "$and": [
+                        {f"predictions.{label}.value": {"$lt": lower_confidence_threshold}},
+                        {f"labels_new.{label}": True},
+                        {f"labels_validated.{label}": {"$exists": False}}
+                    ]
+                }
             ]
         }
 
@@ -293,7 +392,7 @@ def get_images_for_tasks(
             {
                 "$match": {
                     "$and": [
-                        {f"labels_new.{label}": {"$exists": False}},  # Unlabeled Images
+                        {f"labels_new.{label}": {"$exists": has_label}},  # Unlabeled Images
                         {
                             "$or": [
                                 {
@@ -303,6 +402,7 @@ def get_images_for_tasks(
                             ]
                         },
                         {f"predictions.{label}.version": latest_ai_version},
+                        {"origin": {"$nin": exclude_origins}},
                         confidence_aggregation,
                     ]
                 }
@@ -321,37 +421,37 @@ def get_images_for_tasks(
     return images
 
 
-def exctract_frame_list(
-    video_key: str, frame_list: List[int], base_path_frames: Path, db_interventions: str
-):
-    """Function to extract frames.
+# def exctract_frame_list(
+#     video_key: str, frame_list: List[int], base_path_frames: Path, db_interventions: str
+# ):
+#     """Function to extract frames.
 
-    Args:
-        video_key (str): [description]
-        frame_list (List[int]): [description]
-        base_path_frames (Path): [description]
-        db_interventions (str): [description]
-    """
-    intervention = db_interventions.find_one({"video_key": video_key})
-    assert base_path_frames.exists()
+#     Args:
+#         video_key (str): [description]
+#         frame_list (List[int]): [description]
+#         base_path_frames (Path): [description]
+#         db_interventions (str): [description]
+#     """
+#     intervention = db_interventions.find_one({"video_key": video_key})
+#     assert base_path_frames.exists()
 
-    if not intervention:
-        warnings.warn(f"Intervention with video_key {video_key} does not exist")
+#     if not intervention:
+#         warnings.warn(f"Intervention with video_key {video_key} does not exist")
 
-    frames_path = base_path_frames.joinpath(video_key)
+#     frames_path = base_path_frames.joinpath(video_key)
 
-    if not frames_path.exists():
-        os.mkdir(frames_path)
+#     if not frames_path.exists():
+#         os.mkdir(frames_path)
 
-    video_path = Path(intervention["video_path"])
-    cap = cv2.VideoCapture(video_path.as_posix())
+#     video_path = Path(intervention["video_path"])
+#     cap = cv2.VideoCapture(video_path.as_posix())
 
-    for n_frame in frame_list:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, n_frame)
-        ret, frame = cap.read()
-        if ret:
-            cv2.imwrite(frames_path.joinpath(f"{n_frame}.png"), frame)
+#     for n_frame in frame_list:
+#         cap.set(cv2.CAP_PROP_POS_FRAMES, n_frame)
+#         ret, frame = cap.read()
+#         if ret:
+#             cv2.imwrite(frames_path.joinpath(f"{n_frame}.png"), frame)
 
 
-def get_images_in_progress(db_images):
-    return db_images.find({"in_progress": True})
+# def get_images_in_progress(db_images):
+#     return db_images.find({"in_progress": True})

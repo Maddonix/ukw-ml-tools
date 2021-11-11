@@ -9,7 +9,7 @@ from torchmetrics.classification.accuracy import Accuracy
 from torchvision import models
 
 
-class ToolDetectionResnet(LightningModule):
+class GoogleNet(LightningModule):
     def __init__(self, num_classes, freeze_extractor, **kwargs):
         super().__init__()
         self.num_classes = num_classes
@@ -18,8 +18,8 @@ class ToolDetectionResnet(LightningModule):
         # this line ensures params passed to LightningModule will be saved to ckpt
         # it also allows to access params with 'self.hparams' attribute
         self.save_hyperparameters()
-        self.model = models.resnext50_32x4d(pretrained=True)
-        print(self.model)
+        # self.model = models.resnext50_32x4d(pretrained=True)
+        self.model = models.googlenet(pretrained=False)
 
         if self.freeze_extractor:
             print("Transfer learning with a fixed ConvNet feature extractor")
@@ -30,45 +30,80 @@ class ToolDetectionResnet(LightningModule):
 
         num_ftrs = self.model.fc.in_features
         self.model.fc = nn.Linear(num_ftrs, self.num_classes)
+        self.model.aux1.fc2 = nn.Linear(self.model.aux1.fc2.in_features, self.num_classes)
+        self.model.aux2.fc2 = nn.Linear(self.model.aux2.fc2.in_features, self.num_classes)
 
         # loss function
+        self.loss = nn.BCEWithLogitsLoss()
+        self.loss1 = nn.BCEWithLogitsLoss()
+        self.loss2 = nn.BCEWithLogitsLoss()
+        self.discount = 0.3
+
         self.criterion = nn.BCEWithLogitsLoss()  # nn.NLLLoss
 
         self.train_accuracy = Accuracy()
         self.val_accuracy = Accuracy()
         self.test_accuracy = Accuracy()
 
+
     def forward(self, x: torch.Tensor):
         return self.model(x)
 
     def step(self, batch: Any):
         inputs, labels = batch
-        outputs = self.forward(inputs)
-        preds = sigmoid(outputs).squeeze()
+        output = self.forward(inputs)
+
+        preds = sigmoid(output).squeeze(dim = -1)
         preds[preds >= 0.5] = 1
         preds[preds < 0.5] = 0
-        loss = self.criterion(outputs.squeeze(), torch.tensor(labels).type_as(outputs))
+
+        loss = self.criterion(output.squeeze(dim = -1), torch.tensor(labels).type_as(output))
 
         return loss, preds, labels
 
     def training_step(self, batch: Any, batch_idx: int):
-        loss, preds, targets = self.step(batch)
+        self.model.train()
+        inputs, labels = batch
+        output = self.forward(inputs)
+        o = output.logits
+        o1 = output.aux_logits1
+        o2 = output.aux_logits2
+        
+        preds = sigmoid(o).squeeze(dim = -1)
+        preds[preds >= 0.5] = 1
+        preds[preds < 0.5] = 0
 
-        acc = self.train_accuracy(preds, targets)
+        preds1 = sigmoid(o1).squeeze(dim = -1)
+        preds1[preds1 >= 0.5] = 1
+        preds1[preds1 < 0.5] = 0
+
+        preds2 = sigmoid(o2).squeeze(dim = -1)
+        preds2[preds2 >= 0.5] = 1
+        preds2[preds2 < 0.5] = 0
+        
+        loss = self.loss(o.squeeze(dim = -1), torch.tensor(labels).type_as(o))
+        loss1 = self.loss1(o1.squeeze(dim = -1), torch.tensor(labels).type_as(o1))
+        loss2 = self.loss2(o2.squeeze(dim = -1), torch.tensor(labels).type_as(o2))
+        total_loss = self.discount * loss + self.discount * loss1 + self.discount * loss2 
+
+
+        acc = self.train_accuracy(preds, labels)
 
         # log train metrics
+        self.log("train/total_loss", total_loss, on_step = False, on_epoch = True, prog_bar = True)
         self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/acc", acc, on_step=False, on_epoch=True, prog_bar=True)
 
         # and then read it in some callback or in training_epoch_end() below
         # remember to always return loss from training_step, or else backpropagation will fail!
-        return {"loss": loss, "preds": preds, "targets": targets}
+        return {"loss": total_loss, "preds": preds, "targets": labels}
 
     def training_epoch_end(self, outputs: List[Any]):
         # `outputs` is a list of dicts returned from `training_step()`
         pass
 
     def validation_step(self, batch: Any, batch_idx: int):
+        self.model.eval()
         loss, preds, targets = self.step(batch)
 
         # log val metrics
@@ -82,6 +117,7 @@ class ToolDetectionResnet(LightningModule):
         pass
 
     def test_step(self, batch: Any, batch_idx: int):
+        self.model.eval()
         loss, preds, targets = self.step(batch)
 
         # log test metrics
