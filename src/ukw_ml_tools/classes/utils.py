@@ -1,3 +1,4 @@
+import pandas as pd
 from pathlib import Path
 from collections import defaultdict
 from typing import Any, List
@@ -158,3 +159,28 @@ def get_fps(cap: cv2.VideoCapture) -> float:
     fps = cap.get(cv2.CAP_PROP_FPS)
     assert fps
     return fps
+
+def prediction_df_long_to_wide(df_long: pd.DataFrame) -> pd.DataFrame:
+    return df_long.pivot_table(
+        index=[FIELDNAME_FRAME_NUMBER, "_id"],
+        columns=[COLNAME_AI_NAME],
+        values=[FIELDNAME_PREDICTION_LABEL, FIELDNAME_PREDICTION_VALUE]
+        )
+
+def parse_stats_dict_name(name, value):
+    keys = name.split(".")
+    record = {}
+    record[DF_COL_ENTITY] = keys[0]
+    record[DF_COL_VALUE_TYPE] = keys[1]
+    record[DF_COL_DATE] = dt.now()
+    record[DF_COL_VALUE] = value
+    
+    new_attribute = []
+    for i, key in enumerate(keys[2:]):
+        new_attribute.append(key)
+        if len(new_attribute) == 2:
+            record.update({
+                new_attribute[0]: new_attribute[1]
+            })
+            new_attribute = []
+    return record

@@ -1,12 +1,14 @@
-from typing import Collection
+from typing import Collection, Iterable
 from bson.objectid import ObjectId
 from pymongo.collection import Collection
 from tqdm import tqdm
 from ukw_ml_tools.classes.fieldnames import FIELDNAME_VIDEO_KEY, FIELDNAME_VIDEO_PATH
+from ukw_ml_tools.classes.terminology import Terminology
 from ukw_ml_tools.db.crud import delete_frames_from_db
 from .utils import *
 from .fieldnames import *
 import cv2
+import pandas as pd
 
 class Intervention:
     """asd
@@ -22,6 +24,7 @@ class Intervention:
         self._id = self.intervention["_id"]
         self.frame_dir = self.base_path_frames.joinpath(self.intervention[FIELDNAME_VIDEO_KEY])
         self.skip_frame_factor = cfg["skip_frame_factor"]
+        self.prediction_result: pd.DataFrame = None
 
 
     def get_unique_frame_labels(self) -> List[str]:
@@ -40,18 +43,68 @@ class Intervention:
 
         return unique_labels
 
+
     def get_frame_id(self, n_frame: int):
         return self.intervention[FIELDNAME_FRAMES][str(n_frame)]
 
+    def get_images_with_predictions(self, as_list: bool = False) -> Iterable:
+        frame_ids = self.get_all_frame_ids()
+        frames = self.db_images.find(
+            {
+                "_id": {
+                    "$in": frame_ids
+                },
+                FIELDNAME_PREDICTIONS: {
+                    "$nin": [{}]
+                }
+            }
+        )
+
+        if as_list: return [_ for _ in frames]
+        else: return frames
+
+    def get_all_frame_ids(self) -> List[ObjectId]:
+        return [_id for n, _id in self.intervention[FIELDNAME_FRAMES].items()]
 
     def refresh(self):
         self.intervention = self.db_interventions.find_one({"_id": self._id})
         return self.intervention
 
+    def get_prediction_result(self, as_list: bool = False) -> pd.DataFrame:
+        frames_with_prediction = self.get_images_with_predictions()
+        df_records = []
 
+        for frame in frames_with_prediction:
+            _predictions = frame[FIELDNAME_PREDICTIONS]
+            predictions = [{
+                "_id": frame["_id"],
+                FIELDNAME_FRAME_NUMBER: frame[FIELDNAME_FRAME_NUMBER],
+                "ai_name": ai_name,
+                FIELDNAME_PREDICTION_VALUE: label_prediction[FIELDNAME_PREDICTION_VALUE],
+                FIELDNAME_PREDICTION_LABEL: label_prediction[FIELDNAME_PREDICTION_LABEL],
+                FIELDNAME_AI_VERSION: label_prediction[FIELDNAME_AI_VERSION] 
+            } for ai_name, label_prediction in _predictions.items()]
+            df_records.extend(predictions)
+
+        if as_list: return df_records
+        else: return pd.DataFrame.from_records(df_records).sort_values(
+            [FIELDNAME_FRAME_NUMBER, FIELDNAME_PREDICTION_VALUE], ignore_index = True
+            )
+
+    def set_prediction_result(self):
+        self.prediction_result = self.get_prediction_result()
+
+    def prediction_df_long_to_wide(self, prediction_df: pd.DataFrame = None) -> pd.DataFrame:
+        if not prediction_df:
+            if self.prediction_df:
+                prediction_df = self.prediction_df
+            else:
+                self.set_prediction_result()
+                prediction_df = self.prediction_df
+
+        return prediction_df_long_to_wide(prediction_df)
+        
     def add_frame_labels(self, frame_labels: dict):
-        imported_ids = self.extract_frames([_ for _ in frame_labels.keys()])
-
         for n_frame, _label in frame_labels.items():
             update_dict = self.frame_label_dict_to_update_dict(_label)
             self.db_images.update_one({"_id": self.get_frame_id(n_frame)}, {"$set": update_dict})
@@ -75,7 +128,6 @@ class Intervention:
             return frame_list
         else:
             return frame_cursor
-
 
     def extract_frames(self, frame_list: List[int] = None, frame_suffix: str = ".png"):
         cap = cv2.VideoCapture(self.intervention[FIELDNAME_VIDEO_PATH])
