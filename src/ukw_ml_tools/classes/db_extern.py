@@ -3,7 +3,7 @@ import requests
 from typing import List
 
 from ukw_ml_tools.classes.fieldnames import FIELDNAME_VIDEO_KEY, FIELDNAME_VIDEO_PATH
-from ukw_ml_tools.classes.utils import get_intervention_db_template
+from ukw_ml_tools.classes.utils import get_intervention_db_template, check_extern_video_annotation_timestamp
 
 
 class DbExtern:
@@ -11,7 +11,8 @@ class DbExtern:
     """
 
     def __init__(self, cfg: dict):
-        self.url = cfg["url_endobox_extreme"] + ":" + cfg["port_webserver"] + "/data"
+        # self.http_prefix = 
+        self.url = cfg["http_prefix"] + cfg["url_endobox_extreme"] + ":" + cfg["port_webserver"] + "/data"
         self.fields_extern = cfg["db_extern_fields"]
         self.user = cfg["user_webserver"]
         self._p = cfg["password_webserver"]
@@ -20,6 +21,9 @@ class DbExtern:
             "int": int,
             "str": str,
         }
+        self.time_format = cfg["db_extern_date_pattern"]
+        self.user_priority = cfg["db_extern_annotation_user_priority"]
+
 
     def convert_intervention_external_to_internal(self, intervention):
         valid = self.validate_extern_intervention(intervention)
@@ -42,11 +46,25 @@ class DbExtern:
 
 
     def get_extern_interventions(self) -> List[dict]:
-        r = requests.get(f"{self.url}/GetVideosExtern", auth=self._auth)
+        r = requests.get(f"{self.url}/GetVideosExtern", auth=self._auth, verify = False)
         assert r.status_code == 200
 
         return r.json()
 
+    def get_extern_annotations(self):
+        r = requests.get(f"{self.url}/GetVideosWithAnnotations", auth = self._auth, verify = False)
+        assert r.status_code == 200
+
+        return r.json()
+
+    def get_extern_video_annotation(self, video_key):
+        r = requests.get(self.url+"/GetAnnotationsByVideoName/"+video_key, auth = self._auth, verify = False)
+        annotations = r.json()
+
+        return annotations
+
+    def extract_frames(self):
+        pass
 
     # Validation
     def validate_field_extern(self, field, value) -> bool:

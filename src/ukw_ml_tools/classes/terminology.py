@@ -15,10 +15,30 @@ class Terminology:
         self.url = cfg["url_endobox_extreme"]+":"+ cfg["port_webserver"] + "/data"
         self.auth = (cfg["user_webserver"], cfg["password_webserver"])
         self.cfg = cfg
+        self.concept_attributes = cfg["terminology_concept_attributes"]
         self.terminology_type = terminology_type
         
         self.terminology_df = pd.read_excel(self.terminology_path)
 
+
+    def get_concepts(self):
+        return [_ for _ in self.concept_attributes.keys()]
+
+    def get_concept_query(self, concept): 
+        assert concept in self.concept_attributes
+
+        attributes = self.concept_attributes[concept]
+        child_attributes = []
+        for attribute in attributes:
+            child_attributes.extend(self.get_all_child_attribute_ids(attribute))
+        
+        attributes.extend(child_attributes)
+
+        query = {
+            "$elemMatch": {"$in": attributes}
+        }
+
+        return query
 
     def process_raw_text(self, text: str) -> str:
         """Removes \\r \\n and strips flanking spaces from text.\
@@ -52,7 +72,9 @@ class Terminology:
     def terminology_attribute_id_to_name(self, att_id):
         return self.terminology_df[self.terminology_df["ID"] == att_id]["Attribut"].to_list()[0]
 
-    def get_all_child_attribute_ids(att_id, terminology_df):
+    def get_all_child_attribute_ids(self, att_id, terminology_df = None):
+        if not terminology_df:
+            terminology_df = self.terminology_df
         return terminology_df[terminology_df["ID"].str.startswith(att_id)].ID.to_list()
 
 
@@ -69,7 +91,9 @@ class Terminology:
                 auth = self.auth
             )
             assert r.status_code == 200
-            return r.json()
+            tokens = r.json()
+            tokens[FIELDNAME_TOKENS_VALUE] = [_[FIELDNAME_TOKENS_VALUE] for _ in tokens["tokens"] if not _["modifier"]]
+            return tokens
 
         else:
             r = requests.post(

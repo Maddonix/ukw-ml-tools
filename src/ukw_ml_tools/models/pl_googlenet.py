@@ -34,9 +34,9 @@ class GoogleNet(LightningModule):
         self.model.aux2.fc2 = nn.Linear(self.model.aux2.fc2.in_features, self.num_classes)
 
         # loss function
-        self.loss = nn.BCEWithLogitsLoss()
-        self.loss1 = nn.BCEWithLogitsLoss()
-        self.loss2 = nn.BCEWithLogitsLoss()
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=torch.Tensor([5]))
+        self.loss1 = nn.BCEWithLogitsLoss(pos_weight=torch.Tensor([3]))
+        self.loss2 = nn.BCEWithLogitsLoss(pos_weight=torch.Tensor([0.5]))
         self.discount = 0.3
 
         self.criterion = nn.BCEWithLogitsLoss()  # nn.NLLLoss

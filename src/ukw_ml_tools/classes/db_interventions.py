@@ -27,6 +27,7 @@ class DbInterventions:
         self.paths = {
             "base_path_frames": Path(cfg["base_path_frames"])
         }
+        self.terminology = None
 
     def get_by_id(self, _id: ObjectId):
         return self.db.find_one({"_id": _id})
@@ -48,16 +49,27 @@ class DbInterventions:
             intervention_list = self.get_interventions_with_report_or_patho()
         
         results = {}
+        intervention_list = [_ for _ in intervention_list]
 
         for intervention in tqdm(intervention_list):
             if FIELDNAME_REPORT_RAW in intervention:
                 text = intervention[FIELDNAME_REPORT_RAW]
+                if isinstance(text, dict):
+                    text = dict_of_lists_to_text(text)
+                elif isinstance(text, type(None)):
+                    text = ""
                 result_report = self.terminology.get_terminology_result(text, terminology_type, return_tokens, preprocess_text)
-
+            else:
+                result_report = {}
             if FIELDNAME_PATHO_RAW in intervention:
                 text = intervention[FIELDNAME_PATHO_RAW]
+                if isinstance(text, dict):
+                    text = dict_of_lists_to_text(text)
+                elif isinstance(text, type(None)):
+                    text = ""
                 result_patho = self.terminology.get_terminology_result(text, terminology_type, return_tokens, preprocess_text)
-
+            else:
+                result_patho = {}
             result = {FIELDNAME_TOKENS_REPORT: result_report, FIELDNAME_TOKENS_PATHO: result_patho}
             results[intervention["_id"]] = result
 
@@ -71,6 +83,10 @@ class DbInterventions:
     ## Create
     def create_new_from_external(self, intervention_dict: dict):
         video_key = intervention_dict[FIELDNAME_VIDEO_KEY]
+        _ = self.db.find_one(field_value_query(FIELDNAME_VIDEO_KEY, video_key))
+        if _:
+            return False
+
         intervention_date = datetime_from_video_key(
             video_key,
             self.video_key_re_date_pattern,
@@ -83,13 +99,9 @@ class DbInterventions:
         if intervention_date:
             intervention_dict[FIELDNAME_INTERVENTION_DATE] = intervention_date
 
-        _ = self.db.find_one(field_value_query(FIELDNAME_VIDEO_KEY, video_key))
-
-        if _:
-            return False
-        else:
-            result = self.db.insert_one(intervention_dict)
-            return result.inserted_id
+    
+        result = self.db.insert_one(intervention_dict)
+        return result.inserted_id
 
     def create_new_intervention_from_video_file(self, source_video_path: Path, target_video_dir: Path, origin: str, intervention_type: str):
         intervention_dict = get_intervention_db_template()
@@ -159,8 +171,8 @@ class DbInterventions:
             {
                 "$match": {
                     "$or": [
-                        {FIELDNAME_PATHO_RAW: {"$exists": True}},
-                        {FIELDNAME_REPORT_RAW: {"$exists": True}}
+                        {FIELDNAME_PATHO_RAW: {"$exists": True, "$nin": [None, ""]}},
+                        {FIELDNAME_REPORT_RAW: {"$exists": True, "$nin": [None, ""]}}
                     ]
                 }
             }
@@ -174,55 +186,10 @@ class DbInterventions:
     def get_distinct_values(self, field_str: str):
         return self.db.distinct(field_str)
 
-    # implement Convolution for prediction smoothing
-    ## set blurry frames to 0.5 for calculation
-    ## set out of body frames to 0
-
-    def get_grouped_count(self, fieldname, additional_match_conditions: dict = None) -> dict:
-        match_conditions = {fieldname: {"$nin": ["", None, [], {}]}}
-        prefixes = [PREFIX_INTERVENTION, PREFIX_COUNT]
-
-        if additional_match_conditions:
-            for prefix, _match_conditions in additional_match_conditions.items():
-                prefixes.append(prefix)
-                match_conditions.update(_match_conditions)
-
-        _grouped_count = self.db.aggregate([
-            {
-                "$match": match_conditions
-            },
-            {
-                "$group": {
-                    "_id": "$"+fieldname,
-                    PREFIX_COUNT: {"$sum": 1} 
-                }
-            }
-        ])
-
-        prefix = ".".join(prefixes)
-
-        grouped_count = {
-            f"{prefix}.{fieldname}.{_['_id']}": _[PREFIX_COUNT] for _ in _grouped_count
-        }
-
-        return grouped_count
-
-    def get_count(self, match_conditions_dict) -> dict:
-        count = {}
-        prefixes = [PREFIX_INTERVENTION, PREFIX_COUNT]
-        match_conditions = {}
-
-        for prefix, match_condition in match_conditions_dict.items():
-            prefixes.append(prefix)
-            match_conditions.update(match_condition)
-
-        prefix = ".".join(prefixes)
-        count[prefix] = self.db.count_documents(match_conditions)
-        return count
-
     # Stats
     def calculate_stats(self, return_records: bool = True):
         self.stats_queries = {
+            "entity": PREFIX_INTERVENTION,
             "get_count": [
                 {f"{PREFIX_EXISTS}.{FIELDNAME_PATHO_RAW}": {FIELDNAME_PATHO_RAW: {"$exists": True}}},
                 {f"{PREFIX_EXISTS}.{FIELDNAME_REPORT_RAW}": {FIELDNAME_REPORT_RAW: {"$exists": True}}},
@@ -255,36 +222,34 @@ class DbInterventions:
                         f"{PREFIX_EXISTS}.{FIELDNAME_REPORT_RAW},{FIELDNAME_PATHO_RAW}": {FIELDNAME_REPORT_RAW: {"$exists": True}, FIELDNAME_PATHO_RAW: {"$exists": True}}
                     }
                 },
-            ]
+            ],
+            "get_grouped_dict_count": []
         }
 
-        stats_dict = {}
-        stats_dict[f"{PREFIX_INTERVENTION}.{PREFIX_COUNT}"] = self.db.count_documents({})
-        for query in self.stats_queries["get_count"]:
-            stats_dict.update(self.get_count(query))
-        for query in self.stats_queries["get_grouped_count"]:
-            stats_dict.update(self.get_grouped_count(**query))
+        stats = calculate_stats_dict(self.db, self.stats_queries, return_records = return_records)
+        return stats
 
-        if return_records:
-            records = []
-            for name, value in stats_dict.items():
-                record = parse_stats_dict_name(name, value)
-                records.append(record)
-
-        df = pd.DataFrame.from_records(records)
-
-        # stats_dict.update(self.get_grouped_count(FIELDNAME_ORIGIN))  # Count intervention by Origin
-        # stats_dict.update(self.get_count_report_patho())
-
-        return stats_dict
-
-
-    # Interventions
-    # Interventions with {label} in frames
-    # Interventions with Token Evaluation Result
-
-    # line plot
-
+    # Update
+    def update_n_extracted_frames(self):
+        aggregation = [
+            {
+                "$project": {
+                    "_id": 1,
+                    "frame_count": {
+                        "$size": {
+                            "$objectToArray": f"${FIELDNAME_FRAMES}"
+                        }
+                    }
+                }
+            },
+            {
+                "$match": {
+                }
+            }
+        ]
+        interventions = self.db.aggregate(aggregation)
+        for _ in interventions:
+            self.db.update_one({"_id": _["_id"]}, {"$set": {FIELDNAME_N_EXTRACTED_FRAMES: _["frame_count"]}})
     # Validation
     def validate_video_keys(self) -> List[str]:
         """Filters for non unique video_keys
@@ -307,26 +272,35 @@ class DbInterventions:
 
         return duplicates
 
-
     def validate_video_paths(self) -> List[dict]:
-        interventions = self.get_interventions_with_video(as_list = True)
-    
-        no_path = [
-            _ for _ in interventions if not Path(_[FIELDNAME_VIDEO_PATH]).exists()
+        _interventions = self.get_interventions_with_video(as_list = True)
+
+        path_is_none = []
+        interventions = []
+
+        for _ in _interventions:
+            if not _[FIELDNAME_VIDEO_PATH]:
+                path_is_none.append(str(_["_id"]))
+            else:
+                interventions.append(_)
+
+        not_exists = [
+            str(_["_id"]) for _ in interventions if not Path(_[FIELDNAME_VIDEO_PATH]).exists()
         ]
 
-        if no_path:
+        if not_exists:
             warnings.warn("Videos pointing to non existing file detected")
-            warnings.warn("\n".join(no_path))
 
-        return no_path
+        if path_is_none:
+            warnings.warn("Videos with path == None or path == '' found")
 
+        return not_exists, path_is_none
 
     def validate_frame_dirs(self, create_if_missing: bool = False) -> List[dict]:
         interventions = self.get_interventions_with_video(as_list = False)
         
         no_frame_dir = [
-            _ for _ in interventions if not generate_frame_path(
+            str(_["_id"]) for _ in interventions if not generate_frame_path(
                 video_key=_[FIELDNAME_VIDEO_KEY],
                 base_path_frames=self.paths["base_path_frames"]
             ).exists()

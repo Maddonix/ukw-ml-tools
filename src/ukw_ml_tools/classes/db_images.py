@@ -52,24 +52,26 @@ class DbImages:
         as_list: bool = False
         ):
 
-        conditions = [
-            field_value_query(f"{FIELDNAME_LABELS}.{label}", value),
-            fieldvalue_nin_list_query(FIELDNAME_INTERVENTION_ID, test_intervention_ids)
-        ]
+        aggregation = get_train_image_query(label, value, test_intervention_ids, extend_conditions, extend_agg)
 
-        if extend_conditions:
-            conditions.extend(extend_conditions)
+        # conditions = [
+        #     field_value_query(f"{FIELDNAME_LABELS}.{label}", value),
+        #     fieldvalue_nin_list_query(FIELDNAME_INTERVENTION_ID, test_intervention_ids)
+        # ]
 
-        aggregation = [match_logical_and_aggregation(conditions)]
+        # if extend_conditions:
+        #     conditions.extend(extend_conditions)
 
-        if extend_agg:
-            aggregation.extend(extend_agg)
+        # aggregation = [match_logical_and_aggregation(conditions)]
+
+        # if extend_agg:
+        #     aggregation.extend(extend_agg)
 
         try:
             images = self.db.aggregate(aggregation)
         except:
             print(aggregation)
-            Exception
+            raise Exception
             return False
         if as_list:
             images = [_ for _ in images]
@@ -165,7 +167,6 @@ class DbImages:
 
         return images
 
-
     def get_prelabel_images(
         self,
         label: str,
@@ -217,7 +218,6 @@ class DbImages:
             images = pd.DataFrame().from_dict(df_dict)
 
         return images
-
 
     def get_label_count(
         self,
@@ -312,17 +312,60 @@ class DbImages:
 
         return count
 
-
     ## Update
     def update_image_predictions(self, label: str, update: List[dict]):
         for _id, _update in update.items():
             self.db.update_one({"_id": _id}, {"$set": {f"{FIELDNAME_PREDICTIONS}.{label}":_update}})
 
 
+    def calculate_stats(self, return_records: bool = True):
+        self.stats_queries = {
+            "entity": PREFIX_IMAGE,
+            "get_count": [],
+            "get_grouped_count": [],
+            "get_grouped_dict_count": [
+                {
+                    # All Labels Count
+                    "fieldname": FIELDNAME_LABELS,
+                    "additional_match_conditions": None,
+                    "additional_group_conditions": None
+                },
+                {
+                    # Labels by Origin
+                    "fieldname": FIELDNAME_LABELS,
+                    "additional_match_conditions": None,
+                    "additional_group_conditions": {FIELDNAME_ORIGIN: "$"+FIELDNAME_ORIGIN}
+                },
+                # {
+                #     # Labels by Intervention_id
+                #     "fieldname": FIELDNAME_LABELS,
+                #     "additional_match_conditions": None,
+                #     "additional_group_conditions": {FIELDNAME_INTERVENTION_ID: "$"+FIELDNAME_INTERVENTION_ID}
+                # },
+            ]
+        }
+
+        stats = calculate_stats_dict(self.db, self.stats_queries, return_records = return_records)
+        return stats
+
+
+    # Stats
+    # n_frames
+    # n_frames with annotations
+    # n_frames with predictions
+    # n_frames with annotation + Prediction
+    # n_frames by origin
+    # n_frames by intervention
+    # n_frames with label / value
+    # n_frames with prediction / value
+    # n_frames by label: annotation and prediction agree
+    # n_frames by label: annotation and prediction contradicting 
+
+
     # Validation
     def validate_image_paths(self) -> List:
         images = self.get_all()
-        no_image = [_ for _ in images if not Path(_[FIELDNAME_IMAGE_PATH]).exists()]
+        no_image = [str(_["_id"]) for _ in images if not Path(_[FIELDNAME_IMAGE_PATH]).exists()]
 
         if no_image:
             warnings.warn("Images in Db without existing file were found")
@@ -331,6 +374,12 @@ class DbImages:
         return no_image
 
     def validate_all_intervention_ids_exist(self) -> List:
-        _ids = self.db.distinct(FIELDNAME_INTERVENTION_ID)
+        return []
+    #     _ids = self.db.distinct(FIELDNAME_INTERVENTION_ID)
+    #     intervention_not_found = []
+    #     for _ in _ids:
+    #         intervention = self.db_interventions.find_one({"_id": _})
+    #         if not intervention:
+    #             intervention_not_found.append(str(_))
 
-
+    #     return intervention_not_found

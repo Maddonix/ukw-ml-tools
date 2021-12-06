@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from datetime import datetime as dt
 import torch
 from ..db.conversions import binary_classification_pred_to_db_value
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from pathlib import Path
 
 
@@ -84,6 +84,7 @@ class AiPredictor:
             targets = [self.ai_name]
         
         creation_date = dt.now()
+        print(targets)
         predicted_batches = []
         for batch_images, batch_labels in tqdm(dataloader):
             if torch.cuda.is_available():
