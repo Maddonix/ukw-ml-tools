@@ -1,7 +1,7 @@
+from ..mongodb.test_data import get_test_data_ids
+from ..mongodb.train_data import get_train_data_query, image_list_to_train_data
+from ..mongodb.base import filter_images_by_frame_diff
 
-from a_ukw_ml_tools.mongodb.test_data import get_test_data_ids
-from a_ukw_ml_tools.mongodb.train_data import get_train_data_query, image_list_to_train_data
-from a_ukw_ml_tools.mongodb.base import filter_images_by_frame_diff
 
 def create_new_train_data(name, ai_config, db_images, db_test_data):
 
@@ -26,9 +26,10 @@ def create_new_train_data(name, ai_config, db_images, db_test_data):
         # }
     ]
 
-    
     cursor = db_images.aggregate(aggregation)
-    images = filter_images_by_frame_diff(cursor, ai_config.sampler_settings.min_frame_diff)
+    images = filter_images_by_frame_diff(
+        cursor, ai_config.sampler_settings.min_frame_diff
+    )
     train_data = image_list_to_train_data(name, label_type, choices, images)
 
     return train_data

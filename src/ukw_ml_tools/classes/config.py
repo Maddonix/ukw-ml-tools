@@ -4,62 +4,52 @@ from pathlib import Path
 from pymongo.collection import Collection
 from pymongo import MongoClient
 from .train_data import TrainDataSamplerSettings
-from a_ukw_ml_tools.classes.annotation import (
-    BinaryAnnotation,
-    MultilabelAnnotation,
-    MultichoiceAnnotation
-)
-from a_ukw_ml_tools.classes.prediction import (
-    BinaryPrediction,
-    MultilabelPrediction,
-    MultichoicePrediction
-)
+from .annotation import BinaryAnnotation, MultilabelAnnotation, MultichoiceAnnotation
+from .prediction import BinaryPrediction, MultilabelPrediction, MultichoicePrediction
 
 LOOKUP_LABEL_CLASS = {
     "annotation": {
         "binary": BinaryAnnotation,
         "multilabel": MultilabelAnnotation,
-        "multiclass": MultichoiceAnnotation
+        "multiclass": MultichoiceAnnotation,
     },
     "prediction": {
         "binary": BinaryPrediction,
         "multilabel": MultilabelPrediction,
-        "multiclass": MultichoicePrediction
-    }
+        "multiclass": MultichoicePrediction,
+    },
 }
 
-# LOOKUP_MODEL_CLASS = 
+# LOOKUP_MODEL_CLASS =
+
 
 class AiSettings(BaseModel):
     version: float
     image_scaling: int
     base_model_name: str
 
+
 class AiLabelConfig(BaseModel):
     name: str
     label_type: str
     is_compound: bool
-    annotation_class: Optional[Union[
-        BinaryAnnotation,
-        MultilabelAnnotation,
-        MultichoiceAnnotation
-    ]]
-    prediction_class: Optional[Union[
-        BinaryPrediction,
-        MultilabelPrediction,
-        MultichoicePrediction
-    ]]
+    annotation_class: Optional[
+        Union[BinaryAnnotation, MultilabelAnnotation, MultichoiceAnnotation]
+    ]
+    prediction_class: Optional[
+        Union[BinaryPrediction, MultilabelPrediction, MultichoicePrediction]
+    ]
     label_type: str
     choices: List[Union[bool, str]]
     ai_settings: AiSettings
     sampler_settings: TrainDataSamplerSettings
 
-    @validator("annotation_class", always = True)
+    @validator("annotation_class", always=True)
     def set_annotation_class(cls, v, values):
         v = LOOKUP_LABEL_CLASS["annotation"][values["label_type"]]
         return v
 
-    @validator("prediction_class", always = True)
+    @validator("prediction_class", always=True)
     def set_prediction_class(cls, v, values):
         v = LOOKUP_LABEL_CLASS["annotation"][values["label_type"]]
         return v
@@ -67,9 +57,11 @@ class AiLabelConfig(BaseModel):
     # def get_primary_choices(self):
     #     """Returns choices without the labels "outside" and "blurry" """
 
+
 class LabelSettings(BaseModel):
     default_values: Dict[int, Any]
     skip_labels_flank_to_image: List[str]
+
 
 class BasePaths(BaseModel):
     frames: Path
@@ -79,12 +71,12 @@ class BasePaths(BaseModel):
     class Config:
         allow_population_by_field_name = True
         json_encoders = {Path: str}
-        schema_extra = {
-            "example": {}
-        }
+        schema_extra = {"example": {}}
+
 
 class TimeFormat(BaseModel):
     video_extern: str
+
 
 class Auth(BaseModel):
     labelstudio_token: str
@@ -97,6 +89,7 @@ class Auth(BaseModel):
         v = (values["extern_user"], values["extern_pw"])
         return v
 
+
 class WebSettings(BaseModel):
     ip_gpu_server: str
     ip_endobox_extreme: str
@@ -108,26 +101,24 @@ class WebSettings(BaseModel):
 
     @validator("url_extern", always=True)
     def add_url_extern(cls, v, values):
-        v = "https://" 
+        v = "https://"
         v += values["ip_endobox_extreme"]
         v += ":"
         v += values["port_extern"]
         v += "/data"
         return v
 
+
 class Databases(BaseModel):
     url_mongodb: str
 
     mongo_client: Optional[Any]
 
-    @validator("mongo_client", pre = True, always = True)
+    @validator("mongo_client", pre=True, always=True)
     def get_client(cls, v, values):
-        v = MongoClient(
-            values["url_mongodb"],
-            connectTimeoutMS=200,
-            retryWrites = True
-        )
+        v = MongoClient(values["url_mongodb"], connectTimeoutMS=200, retryWrites=True)
         return v
+
 
 class Configuration(BaseModel):
     label_settings: LabelSettings
@@ -137,11 +128,10 @@ class Configuration(BaseModel):
 
     db: Optional[Databases]
 
-    @validator("db", pre = True, always = True)
+    @validator("db", pre=True, always=True)
     def setup_db(cls, v, values):
-        v = Databases(url_mongodb = values["web"].url_mongodb)
+        v = Databases(url_mongodb=values["web"].url_mongodb)
         return v
-
 
     def get_databases(self):
         """

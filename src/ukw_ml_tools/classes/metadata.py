@@ -15,9 +15,7 @@ class ImageMetadata(BaseModel):
         allow_population_by_field_name = True
         # arbitrary_types_allowed = True
         json_encoders = {Path: str}
-        schema_extra = {
-            "example": {}
-        }
+        schema_extra = {"example": {}}
 
     @validator("is_frame")
     def validate_frame_data(cls, v, values):
@@ -48,9 +46,7 @@ class InterventionMetadata(BaseModel):
         allow_population_by_field_name = True
         # arbitrary_types_allowed = True
         json_encoders = {Path: str}
-        schema_extra = {
-            "example": {}
-        }
+        schema_extra = {"example": {}}
 
     @validator("is_video")
     def validate_video_metadata(cls, v, values):
