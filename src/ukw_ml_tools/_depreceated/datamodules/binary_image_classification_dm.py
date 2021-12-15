@@ -64,6 +64,8 @@ class BinaryImageClassificationDM(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
         """Load data. Set variables: self.data_train, self.data_val, self.data_test."""
 
+        # print(paths)
+
         dataset = BinaryImageClassificationDS(
             self.file_paths, self.labels, self.scaling
         )

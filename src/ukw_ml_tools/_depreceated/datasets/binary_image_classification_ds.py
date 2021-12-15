@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
+# from .utils import crop_img
 
 def crop_img(img):
     no_crop = False
@@ -36,6 +37,7 @@ def crop_img(img):
         
         h = _shape[0]
         w = _shape[1]
+        # no_crop = False
 
     img = img[y:y+h, x:x+w]
 
@@ -52,6 +54,9 @@ def crop_img(img):
 
     return img
 
+
+
+
 img_augmentations = A.Compose(
     [
         A.HorizontalFlip(p=0.5),
@@ -59,6 +64,10 @@ img_augmentations = A.Compose(
         A.RandomBrightnessContrast(p=0.5),
     ]
 )
+
+cropping_large = A.Compose([A.CenterCrop(width=1024, height=1024)])
+
+cropping_small = A.Compose([A.CenterCrop(width=720, height=720)])
 
 img_transforms = transforms.Compose([transforms.ToTensor()])
 
@@ -72,13 +81,22 @@ class BinaryImageClassificationDS(Dataset):
         self.labels = labels
         assert len(paths) == len(labels)
 
+        self.classes = {0: "negative", 1: "positive"}
+
     def __getitem__(self, idx):
         img = cv2.imread(self.paths[idx])
         width = int(1024 * self.scaling / 100)  # img.shape[1]
         height = int(1024 * self.scaling / 100)  # img.shape[0]
 
+        # if img.shape[1] >= 1024 and img.shape[0] >= 1024:
+        #     img = cropping_large(image=img)["image"]
+        # elif img.shape[1] >= 720 and img.shape[0] >= 720:
+        #     img = cropping_small(image=img)["image"]
         img = crop_img(img)
         dim = (width, height)
+
+        # Switch BGR to RGB
+        # img = np.flip(img, axis=-1)
         
         if self.training:
             img = img_augmentations(image=img)["image"]
@@ -88,7 +106,7 @@ class BinaryImageClassificationDS(Dataset):
             img, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F
         )
         if self.training:
-            return img_transforms(img), self.labels[idx]
+            return img_transforms(img), torch.tensor(self.labels[idx])
         else:
             return img_transforms(img), self.labels[idx]
 

@@ -1,27 +1,41 @@
-from typing import Collection
-from bson.objectid import ObjectId
-from pymongo.collection import Collection
-from .utils import delete_frame_from_intervention
+from typing import Dict, Union, Optional
+from bson import ObjectId
+from pydantic import BaseModel, Field, NonNegativeInt, validator
 
-class Image:
-    """asd
-    asd
-    """
-    def __init__(self, object_id: ObjectId, db_images: Collection, db_interventions: Collection):
-        self.db_images = db_images
-        self.db_interventions = db_interventions
-        self.image = self.db_images.find_one({"_id": object_id})
-        assert self.image
-        self.n_frame = self.image["n_frame"]
-        self._id = self.image["_id"]
+from .annotation import BinaryAnnotation, MultilabelAnnotation, MultichoiceAnnotation
+from .base import PyObjectId
+from .prediction import BinaryPrediction, MultilabelPrediction, MultichoicePrediction
+from .metadata import ImageMetadata
+from .text import Text
 
-    def delete(self):
-        _ = delete_frame_from_intervention(
-            self.image,
-            self.db_interventions
-        )
+class Image(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id")
+    intervention_id: PyObjectId = Field(default_factory=PyObjectId)
+    origin: str
+    video_key: Optional[str]
+    predictions: Dict[str, Union[BinaryPrediction, MultilabelPrediction, MultichoicePrediction]]
+    predictions_smooth: Optional[Dict[str, Union[BinaryPrediction, MultilabelPrediction, MultichoicePrediction]]]
+    annotations: Dict[str, Union[BinaryAnnotation, MultilabelAnnotation, MultichoiceAnnotation]]
+    image_caption: Optional[Text]
+    metadata: ImageMetadata
 
-        self.db_images.delete_one({"_id": self._id})
-        return True
+    @validator("metadata")
+    def validate_metadata(cls, v, values):
+        if v.is_frame:
+            assert "video_key" in values
+        if v.is_extracted:
+            assert v.path != None
+        return v
 
-    
+    class Config:
+        allow_population_by_field_name = True
+        json_encoders = {ObjectId: str, ImageMetadata: dict}
+        schema_extra = {
+            "example": {}
+        }
+
+    def to_dict(self):
+        r = self.dict(by_alias=True, exclude_none = True)
+        if "path" in r["metadata"]:
+            r["metadata"]["path"] = str(r["metadata"]["path"])
+        return r
