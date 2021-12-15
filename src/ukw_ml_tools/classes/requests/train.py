@@ -11,8 +11,16 @@ class TrainRequest(BaseModel):
     train_data_db: TrainDataDb
     train_data: Optional[TrainData]
 
-    @validator("train_data", always=True)
-    def set_train_data(cls, v, values):
-        v = values["train_data_db"]
-        v = TrainData(**v.to_dict_intern())
-        return v
+    def get_train_data(self):
+        v = self.train_data_db
+        return TrainData(**v.to_dict_intern())
+
+
+class ContinueTrainRequest(BaseModel):
+    name: str
+    model_path: Path
+    train_data_db: TrainDataDb
+
+    def get_train_data(self):
+        v = self.train_data_db
+        return TrainData(**v.to_dict_intern())
