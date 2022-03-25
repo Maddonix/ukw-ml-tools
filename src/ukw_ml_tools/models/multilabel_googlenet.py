@@ -9,7 +9,7 @@ from torchvision import models
 
 
 class MultilabelGoogleNet(LightningModule):
-    def __init__(self, num_classes, freeze_extractor, **kwargs):
+    def __init__(self, num_classes, freeze_extractor, val_loss_weights=None, **kwargs):
         super().__init__()
         self.num_classes = num_classes
         self.freeze_extractor = freeze_extractor
@@ -17,8 +17,9 @@ class MultilabelGoogleNet(LightningModule):
         # this line ensures params passed to LightningModule will be saved to ckpt
         # it also allows to access params with 'self.hparams' attribute
         self.save_hyperparameters()
-        self.model = models.googlenet(pretrained=False)
-
+        self.model = models.googlenet(pretrained=False, init_weights = True)
+        if val_loss_weights:
+            val_loss_weights = torch.FloatTensor(val_loss_weights).to(0)
         if self.freeze_extractor:
             for param in self.model.parameters():
                 param.requires_grad = False
@@ -34,7 +35,12 @@ class MultilabelGoogleNet(LightningModule):
         self.loss2 = nn.CrossEntropyLoss()
         self.discount = 0.3
 
-        self.criterion = nn.CrossEntropyLoss()
+        if val_loss_weights:
+            print("CURRENTLY IGNORING WEIGHTED LOSS")
+            self.criterion = nn.CrossEntropyLoss()
+            # self.criterion = nn.CrossEntropyLoss(weight=val_loss_weights)
+        else:
+            self.criterion = nn.CrossEntropyLoss()
 
         self.train_accuracy = Accuracy()
         self.val_accuracy = Accuracy()
@@ -44,37 +50,39 @@ class MultilabelGoogleNet(LightningModule):
 
         print("Model Setup Complete!")
 
-
     def forward(self, x: torch.Tensor):
         return self.model(x)
 
     def step(self, batch: Any):
         inputs, labels = batch
+        labels = labels.long()
         output = self.forward(inputs)
+        # print(labels)
+        # print(type(labels))
         preds = self.softmax(output).exp().argmax(dim=-1)
         loss = self.criterion(output, labels)
 
         return loss, preds, labels
 
     def training_step(self, batch: Any, batch_idx: int):
-        self.model.train()
         inputs, labels = batch
+        labels = labels.long()
         output = self.forward(inputs)
         o = output.logits
         o1 = output.aux_logits1
         o2 = output.aux_logits2
-        
+
         preds = self.softmax(o).exp().argmax(dim=-1)
-        
+
         loss = self.loss(o, labels)
         loss1 = self.loss1(o1, labels)
         loss2 = self.loss2(o2, labels)
-        total_loss = self.discount * loss + self.discount * loss1 + self.discount * loss2 
+        total_loss = self.discount * loss + self.discount * loss1 + self.discount * loss2
 
         acc = self.train_accuracy(preds, labels)
 
         # log train metrics
-        self.log("train/total_loss", total_loss, on_step = False, on_epoch = True, prog_bar = True)
+        self.log("train/total_loss", total_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("train/acc", acc, on_step=False, on_epoch=True, prog_bar=True)
 
@@ -87,7 +95,6 @@ class MultilabelGoogleNet(LightningModule):
         pass
 
     def validation_step(self, batch: Any, batch_idx: int):
-        self.model.eval()
         loss, preds, targets = self.step(batch)
 
         # log val metrics
@@ -101,7 +108,6 @@ class MultilabelGoogleNet(LightningModule):
         pass
 
     def test_step(self, batch: Any, batch_idx: int):
-        self.model.eval()
         loss, preds, targets = self.step(batch)
 
         # log test metrics
@@ -130,14 +136,14 @@ class MultilabelGoogleNet(LightningModule):
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="min",
-            factor=0.1,
-            patience=3,
-            threshold=0.0001,
+            factor=0.5,
+            patience=5,
+            threshold=0.00001,
             threshold_mode="rel",
             cooldown=0,
             min_lr=0,
             eps=1e-08,
-            verbose=False,
+            verbose=True,
         )
 
         return {

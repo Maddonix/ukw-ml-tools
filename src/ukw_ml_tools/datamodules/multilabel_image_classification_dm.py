@@ -41,20 +41,21 @@ class MultilabelImageClassificationDM(LightningDataModule):
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
+        skip_augmentation: bool = False,
         **kwargs,
     ):
         super().__init__()
-
+        if "swapaxes" in kwargs:
+            self.swapaxes = kwargs["swapaxes"]
+        else: self.swapaxes = None
         self.train_data_object = train_data
-
-        # self.paths = np.array([_.as_posix() for _ in train_data.paths])
-        # self.labels = np.array(train_data.labels)
         self.scaling = scaling
         self.test_size = test_size
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.pin_memory = pin_memory
         self.num_classes = train_data.n_classes()
+        self.skip_augmentation = skip_augmentation
 
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
@@ -67,42 +68,40 @@ class MultilabelImageClassificationDM(LightningDataModule):
 
     def setup(self, stage: Optional[str] = None):
         """Load data. Set variables: self.data_train, self.data_val, self.data_test."""
-
-        # sss = StratifiedShuffleSplit(n_splits = 1, test_size = 0.1, random_state = 42)
-        # train_indexes, test_indexes = [_ for _ in sss.split(
-        #     self.train_data_object.paths,
-        #     self.train_data_object.labels
-        # )][0]
-
-        # x_train, x_test, y_train, y_test = self.train_data_object.group_strat_split(
-        #     test_size=self.test_size)
-        labels = np.array(self.train_data_object.labels)
+        labels = np.array(self.train_data_object.labels).astype(np.int8)
         paths = np.array([_.as_posix() for _ in self.train_data_object.paths])
+        crop = np.array(self.train_data_object.crop)
         is_val = np.array(self.train_data_object.is_val)
 
         x_train = paths[~is_val]
         x_test = paths[is_val]
         y_train = labels[~is_val]
         y_test = labels[is_val]
+        crop_train = crop[~is_val]
+        crop_test = crop[is_val]
 
 
-        class_sample_count = np.array(
-            [len(np.where(y_train == t)[0]) for t in np.unique(y_train)])
+        _ = [len(np.where(y_train == t)[0]) for t in np.unique(y_train)]
+        class_sample_count = np.array(_)
 
         weight = 1. / class_sample_count
-        samples_weight = np.array([weight[t] for t in y_train])
+        _ = [weight[t] for t in y_train]
+        samples_weight = np.array(_)
+        samples_weight = samples_weight.astype(np.float64)
+
         samples_weight = torch.from_numpy(samples_weight)
         samples_weight = samples_weight.double()
-        self.train_sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
+        sampler_len = int(len(y_train[y_train != 0]) * 2)
+        self.train_sampler = WeightedRandomSampler(samples_weight, sampler_len, replacement = True)
 
         y_train = torch.from_numpy(y_train).long()
 
         self.train_dataset = BinaryImageClassificationDS(
-            x_train, y_train, self.scaling
+            x_train, y_train, crop_train, self.scaling, swapaxes = self.swapaxes, skip_augmentation = self.skip_augmentation
         )
 
         self.test_dataset = BinaryImageClassificationDS(
-            x_test, y_test, self.scaling
+            x_test, y_test, crop_test, self.scaling, training = False, swapaxes = self.swapaxes
         )
 
     def train_dataloader(self):
@@ -111,7 +110,7 @@ class MultilabelImageClassificationDM(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
-            sampler = self.train_sampler
+            sampler = self.train_sampler,
         )
 
     def val_dataloader(self):
@@ -120,7 +119,7 @@ class MultilabelImageClassificationDM(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
-            shuffle=False,
+            shuffle=False
         )
 
     # def test_dataloader(self):

@@ -1,20 +1,24 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from bson import ObjectId
 from pydantic import BaseModel, Field, NonNegativeInt, validator
 import pandas as pd
 
-from .annotation import PolypReportAnnotation, VideoSegmentationAnnotation
+from .annotation import VideoSegmentationAnnotation
+from .polyp import ReportPolypAnnotationResult
 from .base import PyObjectId
-from .prediction import VideoSegmentationPrediction
+from .prediction import BoxPrediction, VideoSegmentationPrediction
 from .text import Text, Token
-from .metadata import InterventionMetadata
+from .metadata import InterventionMetadata, InterventionMetadataWü
 from pathlib import Path
+from .report import ReportAnnotationResult
+
 
 class Intervention(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id")
     video_key: Optional[str]
     origin: str
     id_extern: Optional[int]
+    examiners: Optional[List[str]]
     age: Optional[int]
     gender: Optional[int]
     frames: Dict[int, PyObjectId]
@@ -29,8 +33,13 @@ class Intervention(BaseModel):
     intervention_report_id: Optional[int]
     intervention_histology_structured: Optional[Dict[str, str]]
     text_tokens: Optional[Dict[str, List[Token]]]
-    polyp_report_annotations: Optional[List[PolypReportAnnotation]]
+    polyp_reports: Optional[List[ReportPolypAnnotationResult]]
     metadata: InterventionMetadata
+    metadata_wü: Optional[InterventionMetadataWü]
+    report_classification: Optional[ReportAnnotationResult]
+
+    def __hash__(self):
+        return hash(repr(self))
 
     class Config:
         allow_population_by_field_name = True
@@ -81,3 +90,6 @@ class Intervention(BaseModel):
         df.columns = ["frame_number", "id"]
         df = df.sort_values("frame_number")
         return df
+
+    def get_cwd_hex(self):
+        return hex(int(self.metadata_wü.cwd_intervention_id))[2:].upper()

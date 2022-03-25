@@ -1,10 +1,10 @@
-from typing import Dict, Union, Optional
+from typing import Dict, Union, Optional, List
 from bson import ObjectId
 from pydantic import BaseModel, Field, NonNegativeInt, validator
 
 from .annotation import BinaryAnnotation, MultilabelAnnotation, MultichoiceAnnotation
 from .base import PyObjectId
-from .prediction import BinaryPrediction, MultilabelPrediction, MultichoicePrediction
+from .prediction import BinaryPrediction, MultilabelPrediction, MultichoicePrediction, BoxPrediction
 from .metadata import ImageMetadata
 from .text import Text
 
@@ -18,6 +18,10 @@ class Image(BaseModel):
     annotations: Dict[str, Union[BinaryAnnotation, MultilabelAnnotation, MultichoiceAnnotation]]
     image_caption: Optional[Text]
     metadata: ImageMetadata
+    box_detections: Optional[List[PyObjectId]] = []
+
+    def __hash__(self):
+        return hash(repr(self))
 
     @validator("metadata")
     def validate_metadata(cls, v, values):

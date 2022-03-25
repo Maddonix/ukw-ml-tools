@@ -9,7 +9,6 @@ class TrainRequest(BaseModel):
     name: Path
     base_path_models: Path
     train_data_db: TrainDataDb
-    train_data: Optional[TrainData]
 
     def get_train_data(self):
         v = self.train_data_db
@@ -18,7 +17,7 @@ class TrainRequest(BaseModel):
 
 class ContinueTrainRequest(BaseModel):
     name: str
-    model_path: Path
+    path_checkpoint: Path
     train_data_db: TrainDataDb
 
     def get_train_data(self):

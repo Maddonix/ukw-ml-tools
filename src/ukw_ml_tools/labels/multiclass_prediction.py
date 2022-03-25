@@ -23,8 +23,9 @@ def mc_base_pred_dict(ai_config, timestamp=dt.now()):
 def mc_batch_result_raw_to_pred_values(preds: Tensor, softmax=None):
     if not softmax:
         softmax = SOFTMAX
-    raw = softmax(preds)
-    values = torch.argmax(raw, dim=-1)
+    raw = preds
+    values = softmax(preds)
+    values = torch.argmax(values, dim=-1)
 
     if preds.is_cuda:
         values = values.cpu().numpy()

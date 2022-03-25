@@ -11,7 +11,7 @@ from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.loggers import LoggerCollection, WandbLogger
 from sklearn import metrics
 from sklearn.metrics import f1_score, precision_score, recall_score
-
+import numpy as np
 
 def get_wandb_logger(trainer: Trainer) -> WandbLogger:
     """Safely get Weights&Biases logger from Trainer."""
@@ -111,8 +111,22 @@ class LogConfusionMatrixToWandb(Callback):
             logger = get_wandb_logger(trainer)
             experiment = logger.experiment
 
-            preds = torch.cat(self.preds).cpu().numpy()
-            targets = torch.cat(self.targets).cpu().numpy()
+
+            if isinstance(self.preds[0], torch.Tensor):
+                preds = torch.cat(self.preds).cpu().numpy()
+            else:
+                preds = np.concatenate(self.preds)
+                print(preds.shape)
+                preds = preds.squeeze()
+                print(preds.shape)
+
+            if isinstance(self.targets[0], torch.Tensor):
+                targets = torch.cat(self.targets).cpu().numpy()
+            else:
+                targets = np.concatenate(self.targets)
+                print(targets.shape)
+                targets = targets.squeeze()
+                print(targets.shape)
 
             confusion_matrix = metrics.confusion_matrix(y_true=targets, y_pred=preds)
 
@@ -169,8 +183,23 @@ class LogF1PrecRecHeatmapToWandb(Callback):
             logger = get_wandb_logger(trainer=trainer)
             experiment = logger.experiment
 
-            preds = torch.cat(self.preds).cpu().numpy()
-            targets = torch.cat(self.targets).cpu().numpy()
+            if isinstance(self.preds[0], torch.Tensor):
+                preds = torch.cat(self.preds).cpu().numpy()
+            else:
+                preds = np.concatenate(self.preds)
+                print(preds.shape)
+                preds = preds.squeeze()
+                print(preds.shape)
+
+            if isinstance(self.targets[0], torch.Tensor):
+                targets = torch.cat(self.targets).cpu().numpy()
+            else:
+                targets = np.concatenate(self.targets)
+                print(targets.shape)
+                targets = targets.squeeze()
+                print(targets.shape)
+
+
             f1 = f1_score(preds, targets, average=None)
             r = recall_score(preds, targets, average=None)
             p = precision_score(preds, targets, average=None)
@@ -226,17 +255,36 @@ class ImagePredictionLogger(Callback):
             logger = get_wandb_logger(trainer=trainer)
             experiment = logger.experiment
 
+            # print("_________________________-")
+            # print(vars(trainer))
             # get a validation batch from the validation dat loader
-            val_samples = next(iter(trainer.datamodule.val_dataloader()))
-            val_imgs, val_labels = val_samples
+            val_samples = next(iter(trainer.val_dataloaders[0]))
+            val_imgs, _val_labels = val_samples
 
             # run the batch through the network
             val_imgs = val_imgs.to(device=pl_module.device)
-            logits = pl_module(val_imgs)
+            logits = pl_module(val_imgs).to("cpu")
             # preds = torch.argmax(logits, axis=-1)
-            preds = sigmoid(logits).squeeze()
+            preds = sigmoid(logits).numpy()#.squeeze()
+
+            _label_list = pl_module.labels
+
             preds[preds>=0.5]=1
             preds[preds<0.5]=0
+            preds = np.argwhere(preds)
+
+            pred_labels = {i:[] for i in range(len(val_imgs))}
+            for _pred in preds:
+                pred_labels[_pred[0]].append(_label_list[_pred[1]])
+            pred_labels = [pred_labels[i] for i in range(len(val_imgs))]
+
+            _val_labels = _val_labels.to("cpu").numpy()
+            _val_labels = np.argwhere(_val_labels)
+            val_labels = {i:[] for i in range(len(val_imgs))}
+            for _label in _val_labels:
+                val_labels[_label[0]].append(_label_list[_label[1]])
+
+            val_labels = [val_labels[i] for i in range(len(val_imgs))]
 
             # log the images as wandb Image
             experiment.log(
@@ -245,7 +293,7 @@ class ImagePredictionLogger(Callback):
                         wandb.Image(x, caption=f"Pred:{pred}, Label:{y}")
                         for x, pred, y in zip(
                             val_imgs[: self.num_samples],
-                            preds[: self.num_samples],
+                            pred_labels[: self.num_samples],
                             val_labels[: self.num_samples],
                         )
                     ]

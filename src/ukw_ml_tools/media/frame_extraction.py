@@ -26,9 +26,14 @@ def extract_range_by_video_path(
     ):
     paths = {}
     skip_intervals = []
+    if not target_dir.exists():
+        os.mkdir(target_dir)
+        os.system(f"chgrp -R lux_tomcat {target_dir.as_posix()}")
+        
+
     for n_interval, interval in enumerate(intervals):
         _paths = {}
-        for i in range(interval["start"], interval["end"]):
+        for i in range(interval["start"], interval["end"]+1):
             _paths[i] = target_dir.joinpath(get_frame_name(i, prefix, suffix))
         all_exist = False
         for i, _path in _paths.items():

@@ -1,4 +1,15 @@
-def get_intervention_labels(intervention_id, db_images, select = "predictions"):
+import pandas as pd
+
+
+def range_tuples_to_list(tuples):
+    _list = []
+    for flank in tuples:
+        _list.extend([_ for _ in range(flank[0], flank[1])])
+
+    return _list
+
+
+def get_intervention_labels(intervention_id, db_images, select="predictions"):
     """
     Returns one record for each label (_id, name, value, intervention_id, framenumber)
     """
@@ -31,5 +42,3 @@ def get_intervention_labels(intervention_id, db_images, select = "predictions"):
     r = db_images.aggregate(aggregation)
     records = [_ for _ in r]
     return records
-
-

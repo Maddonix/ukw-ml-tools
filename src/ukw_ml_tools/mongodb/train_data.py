@@ -14,20 +14,26 @@ def get_train_data_query(name, exclude_intervention_ids, exclude_origins):
 
     return query
 
+
 def image_list_to_train_data(name, image_list, label_type, choices):
     paths = []
     labels = []
     origins = []
     intervention_ids = []
     image_ids = []
+    crop = []
+    if "blurry" in choices:
+        choices.remove("blurry")
 
     for image in image_list:
+
         assert choices == image[IMG_ANNOTATIONS][name]["choices"]
         paths.append(image[METADATA]["path"])
         labels.append(image[IMG_ANNOTATIONS][name]["value"])
         origins.append(image[ORIGIN])
         intervention_ids.append(image[IMG_INTERVENTION_ID])
         image_ids.append(image["_id"])
+        crop.append(image["metadata"]["crop"])
 
     train_data = {
         "name": name,
@@ -38,6 +44,7 @@ def image_list_to_train_data(name, image_list, label_type, choices):
         "origins": origins,
         "intervention_ids": intervention_ids,
         "image_ids": image_ids,
+        "crop": crop
     }
 
     train_data = TrainData(**train_data)

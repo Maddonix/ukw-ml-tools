@@ -3,7 +3,7 @@ from pydantic import (
     NonNegativeInt,
     validator
 )
-from typing import List, Any
+from typing import List, Any, Optional
 from datetime import datetime
 from .base import Flank
 
@@ -12,6 +12,10 @@ class Annotation(BaseModel):
     annotator_id: NonNegativeInt
     date: datetime
     name: str
+    instance_id: Optional[int]
+
+    def __hash__(self):
+        return hash(repr(self))
 
     @validator("date")
     def rm_ms(cls, v):
@@ -36,6 +40,3 @@ class MultichoiceAnnotation(Annotation):
 class VideoSegmentationAnnotation(Annotation):
     value: List[Flank]
     label_type = "video_segmentation"
-
-class PolypReportAnnotation(Annotation):#######################
-    value: Any

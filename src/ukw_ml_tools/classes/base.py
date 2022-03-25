@@ -16,6 +16,9 @@ class PyObjectId(ObjectId):
             raise ValueError("Invalid objectid")
         return ObjectId(v)
 
+    def __hash__(self):
+        return hash(repr(self))
+
     # @classmethod
     # def __modify_schema__(cls, field_schema):
     #     field_schema.update(type="string")
@@ -29,6 +32,9 @@ class Flank(BaseModel):
     @validator("name")
     def name_to_lower(cls, v):
         return v.lower()
+
+    def __hash__(self):
+        return hash(repr(self))
 
 
 class SettingsSmoothing(BaseModel):

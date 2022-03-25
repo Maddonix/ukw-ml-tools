@@ -28,6 +28,9 @@ class AiSettings(BaseModel):
     image_scaling: int
     base_model_name: str
 
+    def __hash__(self):
+        return hash(repr(self))
+
 
 class AiLabelConfig(BaseModel):
     name: str
@@ -43,6 +46,10 @@ class AiLabelConfig(BaseModel):
     choices: List[Union[bool, str]]
     ai_settings: AiSettings
     sampler_settings: TrainDataSamplerSettings
+    paths: Dict[int, Path]
+
+    class Config:
+        json_encoders = {Path: str}
 
     @validator("annotation_class", always=True)
     def set_annotation_class(cls, v, values):
@@ -54,6 +61,21 @@ class AiLabelConfig(BaseModel):
         v = LOOKUP_LABEL_CLASS["annotation"][values["label_type"]]
         return v
 
+    def get_latest_model_path(self):
+        _ = self.paths
+        _ = list(_.keys())
+        if _:
+            _.sort(reverse = True)
+            path = self.paths[_[0]]
+            
+            return path
+
+        print("no models found")
+        return None
+
+    def __hash__(self):
+        return hash(repr(self))
+
     # def get_primary_choices(self):
     #     """Returns choices without the labels "outside" and "blurry" """
 
@@ -62,20 +84,30 @@ class LabelSettings(BaseModel):
     default_values: Dict[int, Any]
     skip_labels_flank_to_image: List[str]
 
+    def __hash__(self):
+        return hash(repr(self))
+
 
 class BasePaths(BaseModel):
     frames: Path
     models: Path
     train_data: Path
+    terminology: Path
 
     class Config:
         allow_population_by_field_name = True
         json_encoders = {Path: str}
         schema_extra = {"example": {}}
 
+    def __hash__(self):
+        return hash(repr(self))
+
 
 class TimeFormat(BaseModel):
     video_extern: str
+
+    def __hash__(self):
+        return hash(repr(self))
 
 
 class Auth(BaseModel):
@@ -89,15 +121,20 @@ class Auth(BaseModel):
         v = (values["extern_user"], values["extern_pw"])
         return v
 
+    def __hash__(self):
+        return hash(repr(self))
 
 class WebSettings(BaseModel):
     ip_gpu_server: str
     ip_endobox_extreme: str
     port_extern: str
-    port_labelstudio: str
+    url_labelstudio: str
     port_fileserver: str
     url_mongodb: str
     url_extern: Optional[str]
+
+    def __hash__(self):
+        return hash(repr(self))
 
     @validator("url_extern", always=True)
     def add_url_extern(cls, v, values):
@@ -107,6 +144,7 @@ class WebSettings(BaseModel):
         v += values["port_extern"]
         v += "/data"
         return v
+
 
 
 class Databases(BaseModel):
@@ -119,6 +157,9 @@ class Databases(BaseModel):
         v = MongoClient(values["url_mongodb"], connectTimeoutMS=200, retryWrites=True)
         return v
 
+    def __hash__(self):
+        return hash(repr(self))
+   
 
 class Configuration(BaseModel):
     label_settings: LabelSettings
@@ -127,6 +168,9 @@ class Configuration(BaseModel):
     web: WebSettings
 
     db: Optional[Databases]
+
+    def __hash__(self):
+        return hash(repr(self))
 
     @validator("db", pre=True, always=True)
     def setup_db(cls, v, values):

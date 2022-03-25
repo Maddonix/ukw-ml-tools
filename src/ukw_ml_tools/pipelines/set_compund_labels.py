@@ -2,7 +2,8 @@ from ..classes.annotation import MultilabelAnnotation
 from collections import defaultdict
 from tqdm import tqdm
 
-def get_multiclass_image_dict(label_list, db_images):
+
+def get_multiclass_image_dict(label_list, db_images, blurry_as_normal = True):
     updates = defaultdict(list)
     conflicts = []
     for label in label_list:
@@ -16,28 +17,40 @@ def get_multiclass_image_dict(label_list, db_images):
                         conflict = True
             if conflict:
                 conflicts.append(image["_id"])
-            else: 
+            else:
                 updates[label].append(image["_id"])
+    
+    if blurry_as_normal:
+        cursor = db_images.find({"annotations.blurry.value": True})
+        for image in tqdm(cursor):
+            conflict = False
+            for _label in label_list:
+                if _label in image["annotations"]:
+                    if image["annotations"][_label]["value"] == True:
+                        conflict = True
+            if conflict:
+                conflicts.append(image["_id"])
+            else:
+                updates["normal"].append(image["_id"])
 
     conflicts = list(set(conflicts))
     return updates, conflicts
 
+
 def get_outside_images(db_images):
     _label = "body"
-    cursor = db_images.find({f"annotations.{_label}.value": False})
+    cursor = db_images.aggregate([{"$match": {f"annotations.{_label}.value": False}}])
 
     return [_["_id"] for _ in cursor]
+
 
 def set_compound_labels(
     name,
     base_annotation_dict,
     ai_config,
     db_images,
-    exclude_initially = [
-            "outside",
-            "blurry"
-        ]
-    ):
+    exclude_initially=["outside", "blurry"],
+):
     label_list = [_ for _ in ai_config.choices if _ not in exclude_initially]
     updates, conflicts = get_multiclass_image_dict(label_list, db_images)
 
@@ -51,7 +64,9 @@ def set_compound_labels(
             image_updates[_id] = value
 
     if "blurry" in ai_config.choices:
-        blurry_image_ids = [_["_id"] for _ in db_images.find({"annotations.blurry.value": True})]
+        blurry_image_ids = [
+            _["_id"] for _ in db_images.find({"annotations.blurry.value": True})
+        ]
 
         value = ai_config.choices.index("blurry")
         for _id in blurry_image_ids:
@@ -65,6 +80,6 @@ def set_compound_labels(
         image_annotations[_id] = MultilabelAnnotation(**_annotation)
 
     for _id, annotation in tqdm(image_annotations.items()):
-        db_images.update_one({"_id": _id}, {"$set": {f"annotations.{name}": annotation.dict()}})
-
-    
+        db_images.update_one(
+            {"_id": _id}, {"$set": {f"annotations.{name}": annotation.dict()}}
+        )

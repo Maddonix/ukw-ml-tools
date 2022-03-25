@@ -1,21 +1,25 @@
 from pydantic import (
     BaseModel,
-    NonNegativeInt
+    NonNegativeInt,
+    Field
 )
-from typing import List
+from typing import List, Optional, Union
 from datetime import datetime
 
-from .base import Flank, SettingsSmoothing
+from .base import Flank, SettingsSmoothing, PyObjectId
 
 class Prediction(BaseModel):
     name: str
     version: float
-    date: datetime
+    date: Optional[datetime]
+
+    def __hash__(self):
+        return hash(repr(self))
 
 class BinaryPrediction(Prediction):
     value: bool
     raw: float
-    choices: List[bool]
+    choices: List[Union[bool, int]]
     label_type = "binary"
 
 class MultilabelPrediction(Prediction):
@@ -51,3 +55,23 @@ class VideoSegmentationPrediction(Prediction):
     settings_smoothing: SettingsSmoothing
     label_type = "video_segmentation"
 
+class BoxPrediction(Prediction):
+    id: Optional[PyObjectId] = Field(alias="_id")
+    x: int
+    y: int
+    width: int
+    height: int
+    score: float
+    value: Optional[bool]
+    image_id: PyObjectId
+    intervention_id: PyObjectId
+    instance_id: Optional[PyObjectId]
+    frame_number: Optional[int]
+
+    class Config:
+        allow_population_by_field_name = True
+        schema_extra = {
+            "example": {}
+        }
+
+    

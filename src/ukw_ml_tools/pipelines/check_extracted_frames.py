@@ -34,6 +34,6 @@ def update_frames_extracted(video_key, db_interventions, db_images):
     ids_not_extracted = [
         intervention.frames[i] for i, value in is_extracted_dict.items() if not value
     ]
-
+    print(f"{video_key}: {len(ids_not_extracted)} images not extracted")
     update_many_frame_is_extracted(True, ids_extracted, db_images)
     update_many_frame_is_extracted(False, ids_not_extracted, db_images)

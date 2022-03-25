@@ -18,6 +18,7 @@ from ..extern.conversions import (
 from collections import defaultdict
 from .get_objects import get_intervention
 from ..labels.conversions import get_default_label_flanks
+from .instance_import import polyps_to_instances
 
 def filter_duplicate_keys(interventions):
     _duplicates = []
@@ -89,7 +90,7 @@ def get_video_segmentation_extern(video_key, latest_session, default_values_dict
 
     video_annotation_dict = annotations_by_label_group(video_annotations)
     flanks, lookup = get_flank_dict(video_annotation_dict, default_values_dict)
-    flanks["test"] = get_default_label_flanks(flanks["test"], lookup, video_key, db_interventions)
+    flanks["test"].extend(get_default_label_flanks(flanks["test"], lookup, video_key, db_interventions))
     flanks = flanks["train"] + flanks["test"]
     video_segmentation = {}
     for flank in flanks:
@@ -172,7 +173,11 @@ def image_label_dict_to_updates(video_key, image_label_dict, db_interventions):
             _set[f"annotations.{annotation.name}"] = annotation.dict()
         
         
-        _update = ({"_id": image_id}, {"$set": _set})
+        _update = ({
+            "_id": image_id,
+            f"annotations.{annotation.name}.source": {"$in": ["web_annotation_flanks", None]}
+            },
+            {"$set": _set})
         updates.append(_update)
 
     return updates   
@@ -182,10 +187,25 @@ def get_image_updates_for_video_segmentation(
         video_key, 
         db_interventions,
         ai_label_config_dict,
-        skip_labels = ["withdrawal"]
+        skip_labels = [
+            # "withdrawal",
+            # "resection",
+            "polyp_1",
+            "polyp_2",
+            "polyp_3",
+            "new_polyp_1",
+            "new_polyp_2",
+            "new_polyp_3",
+            ]
     ):
+
     intervention = get_intervention(video_key, db_interventions)
+    db_images = db_interventions.database.Images
+    db_instances = db_interventions.database.VideoInstances
+    intervention = polyps_to_instances(intervention, db_interventions, db_images, db_instances)
     video_segmentation_annotation = intervention.video_segments_annotation
+
+
     image_labels = defaultdict(list)
     for name, segmentation in video_segmentation_annotation.items():
         _image_labels = video_segmentation_to_image_labels(
@@ -194,6 +214,7 @@ def get_image_updates_for_video_segmentation(
             is_annotation=True,
             skip_labels=skip_labels
         )
+
         for n_frame, value in _image_labels.items():
             image_labels[n_frame].extend(value)
 
